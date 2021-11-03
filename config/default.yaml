@@ -1,0 +1,22 @@
+project_name: dtip
+
+#* HYPERPARAMETERS
+seed: 47
+num_workers: 4
+pin_memory: False
+batch_size: 8
+
+#* FULL PATHS TO FOLDERS AND FILES
+paths:
+  # Main folders in project tree
+  root_dir: &root_dir !rootdir # The parent folder
+  data_dir: &data_dir !joinpath [*root_dir, data] # Data parent folder
+  logs_dir: !joinpath [*root_dir, logs]
+  tests_dir: !joinpath [*root_dir, tests]
+  config_dir: !joinpath [*root_dir, config] # Configuration folder
+  notebooks_dir: !joinpath [*root_dir, notebooks] # notebooks folder
+
+
+log: # logging default settings
+  name: dtipLogger # Name of the logger. Name must be same as logging.conf 
+  filename: dtip_logs.log

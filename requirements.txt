@@ -1,8 +1,6 @@
 click_logging
 click
 pyfiglet
-dicom2nifti
-nibabel
 sphinx
 furo
 fslpy
