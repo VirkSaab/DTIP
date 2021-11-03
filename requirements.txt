@@ -1,6 +1,6 @@
-click_logging
 click
 pyfiglet
 sphinx
 furo
 fslpy
+nibabel
