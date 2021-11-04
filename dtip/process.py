@@ -71,7 +71,7 @@ def run_topup(input_path: Union[str, Path],
     else:
         _msg = 'b0 does not match AP-PA requirements. '
         _msg += 'Skipping TOPUP and returning `input_path`'
-        logging.info(_msg)
+        logging.warning(_msg)
         return input_path
     return 0
 
@@ -433,7 +433,7 @@ def process_multi_subjects(input_path: Union[str, Path],
         print("="*10, f"{len(error_list)} Subjects with Errors", "="*10)
         for es in error_list:
             print(es)
-        print("="*40)
+        print("="*44)
         return len(error_list)
     else:
         print("="*30)

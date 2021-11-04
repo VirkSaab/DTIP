@@ -92,7 +92,7 @@ def method_dcm2nii(input_path: Union[str, Path],
         command += ['-x', 'Y']
     command += ['-t', 'Y', '-d', 'N', '-o', output_path, input_path]
 
-    with SpinCursor("dcm2nii conversion..."):
+    with SpinCursor('dcm2nii conversion...', end='conversion completed!'):
         try:
             subprocess.run(command)  # Run command
             # Get metadata in JSON files
@@ -128,7 +128,7 @@ def method_dcm2niix(input_path: Union[str, Path],
         command += ['-x', 'y']
     command += ['-b', 'y', '-p', 'y', '-f', '%p_s%s', '-o', output_path, input_path]
 
-    with SpinCursor("dcm2niix conversion..."):
+    with SpinCursor('dcm2niix conversion...', end='conversion completed!'):
         try:
             subprocess.run(command)  # Run command
             return 0
