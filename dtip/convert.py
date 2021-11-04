@@ -36,7 +36,6 @@ def convert_raw_dicom_to_nifti(input_path: Union[str, Path],
     """
 
     input_path, output_path = Path(input_path), Path(output_path)
-    output_path = output_path/input_path.stem
     output_path.mkdir(parents=True, exist_ok=True)
 
     if not input_path.is_dir():
@@ -96,6 +95,8 @@ def method_dcm2nii(input_path: Union[str, Path],
     with SpinCursor("dcm2nii conversion..."):
         try:
             subprocess.run(command)  # Run command
+            # Get metadata in JSON files
+            subprocess.run(['dcm2niix', '-b', 'o', '-o', output_path, input_path])
             return 0
 
         except FileNotFoundError:
@@ -125,7 +126,7 @@ def method_dcm2niix(input_path: Union[str, Path],
         command += ['-z', 'y']
     if reorient:
         command += ['-x', 'y']
-    command += ['-p', 'y', '-f', '%p_s%s', '-o', output_path, input_path]
+    command += ['-b', 'y', '-p', 'y', '-f', '%p_s%s', '-o', output_path, input_path]
 
     with SpinCursor("dcm2niix conversion..."):
         try:

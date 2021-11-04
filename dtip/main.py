@@ -88,14 +88,53 @@ def locate(input_path, output_path):
     """Locate required DTI data files from converted volumes"""
     from dtip.locate import locate_dti_files
 
-    ret_code = locate_dti_files(input_path=input_path,
-                                output_path=output_path,
-                                protocol_names=CNF.protocol_names,
-                                n_gradients=CNF.n_gradients,
-                                ret_paths=False)
+    ret_code, _ = locate_dti_files(input_path=input_path,
+                                   output_path=output_path,
+                                   protocol_names=CNF.protocol_names,
+                                   n_gradients=CNF.n_gradients,
+                                   ret_paths=False)
 
     if ret_code == 0:
         click.secho('[@ locate] completed!\n', fg='green')
+
+
+# ----------------------------------------> GENERATE :
+@cli.command()
+@click.argument('input_path', type=click.Path(exists=True))
+@click.option('-d', '--output_path', default='index.txt', show_default=True, help="path/to/file/index.txt")
+def make_index(input_path: str, output_path: str):
+    """Generate an index.txt file containing value 1 for each DTI volume"""
+    from dtip.generate import make_index_file
+    ret_code = make_index_file(input_path, output_path)
+    if ret_code == 0:
+        click.secho('[@ make-index] completed!\n', fg='green')
+
+
+@cli.command()
+@click.option('-t', '--readout_time', default=0.05, show_default=True, help="Total readout time.")
+@click.option('-ap', '--ap_pe', default="0,-1,0", show_default=True, help="Anterior to Posterior Phase Encoding.")
+@click.option('-pa', '--pa_pe', default="0,1,0", show_default=True, help="Posterior to Anterior Phase Encoding.")
+@click.option('-d', '--output_path', default='acqparams.txt', show_default=True, help="path/to/file/acqparams.txt")
+def make_acqparams(readout_time: float, ap_pe: list, pa_pe: list, output_path: str):
+    """Generate the acqparams.txt file"""
+    from dtip.generate import make_acquisition_params
+    ret_code = make_acquisition_params(readout_time, ap_pe, pa_pe, output_path)
+    if ret_code == 0:
+        click.secho('[@ make-acqparams] completed!\n', fg='green')
+
+
+@cli.command()
+@click.argument('input_path', type=click.Path(exists=True))
+@click.option('-o', '--output_path', default='b0.nii.gz', show_default=True, help="path/to/file/b0.nii.gz")
+@click.option('-idx', default=0, show_default=True, help="volume index to extract.")
+def make_b0(input_path: str, output_path: str, idx: str):
+    """From the DTI 4D data, choose a volume without diffusion weighting 
+    (e.g. the first volume). You can now extract this as a standalone 3D image,
+    using `fslroi` command. This function runs the `fslroi` command internally.
+    """
+    from fsl.wrappers.misc import fslroi
+    fslroi(input_path, output_path, idx, 1)
+    click.secho('[@ make-b0] completed!\n', fg='green')
 
 
 # ----------------------------------------> PROCESS :
@@ -114,6 +153,8 @@ def process(input_path, output_path, method, ss):
     ret_code = process_one_subject(input_path=input_path,
                                    output_path=output_path,
                                    method=method,
+                                   protocol_names=CNF.protocol_names,
+                                   n_gradients=CNF.n_gradients,
                                    strip_skull=ss)
     if ret_code == 0:
         click.secho('[@ process] completed!\n', fg='green')
