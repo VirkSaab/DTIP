@@ -84,10 +84,7 @@ def run_eddy(input_path: Union[str, Path],
              bvals_path: Union[str, Path],
              topup_path: Union[str, Path] = None,
              output_path: Union[str, Path] = "eddy_unwarped",
-             json_path: Union[str, Path] = None,
-             flm: str = "linear",
-             fwhm: int = 0,
-             shelled: bool = False) -> int:
+             json_path: Union[str, Path] = None) -> int:
     """Perform eddy currents distortion correction step for the given 
         nifti (.nii.gz) DTI data. Internally runs FSL's eddy command.
 
@@ -108,10 +105,6 @@ def run_eddy(input_path: Union[str, Path],
             `eddy_unwarped_images.eddy_command_txt`, etc.
         json_path: Name of .json text file with information about slice timing.
             N.B. --json and --slspec are mutually exclusive.
-        flm: First level EC model (movement/linear/quadratic/cubic, default quadratic)
-        fwhm: FWHM for conditioning filter when estimating the parameters (default 0)
-        shelled: Assume, don't check, that data is shelled (default false)
-
 
     Returns:
         exit code 0 if completed successfully.
@@ -126,25 +119,51 @@ def run_eddy(input_path: Union[str, Path],
             f"--acqp={acqp_path}",
             f"--bvecs={bvecs_path}",
             f"--bvals={bvals_path}",
-            f"--fwhm={fwhm}",
-            f"--flm={flm}",
             f"--out={output_path}",
-            # Estimate how susceptibility field changes with subject movement
-            "--estimate_move_by_susceptibility",
-            "--repol"  # Detect and replace outlier slices
-            # "--mporder=16" # Not implemented for CPU
         ]
         if topup_path:
             command.append(f"--topup={str(topup_path)}")
         if json_path:
             command.append(f"--json={str(json_path)}")
-        if shelled:
-            command.append("--data_is_shelled")
-        command.append('-v')
+        # command.append('-v')
         ret = subprocess.run(command).returncode
         if ret != 0:
             return 1
     return 0
+
+
+def run_dtifit(input_path: Union[str, Path],
+               brain_mask_path: Union[str, Path],
+               bvecs_path: Union[str, Path],
+               bvals_path: Union[str, Path],
+               output_path: Union[str, Path]) -> int:
+    """Perform tensor fitting for the given DTI data.
+
+    Args:
+        input_path: compressed NIfTI (.nii.gz) file path containing 4D DTI 
+        data. Usually, after topup and eddy current corrections.
+        brain_mask_path: bet brain binary mask file path.
+        bvecs_path: path/to/bvectors.bvec.
+        bvals_path: path/to/bvalues.bval.
+        output_path: path/to/save/folder/output basename. For example, 
+            `output_path=data/dtifitted/dti`. The output files will be named 
+            as `dti_FA.nii.gz`, `dti_MD.nii.gz`, `dti_V1.nii.gz`, etc.
+
+    Returns:
+        returncode of the subprocess.
+    """
+
+    with SpinCursor("Running dtifit...", end=f"Tensor fitted data saved at `{output_path}`"):
+        ret_code = subprocess.run([
+            "dtifit",
+            f"--data={input_path}",
+            f"--mask={brain_mask_path}",
+            f"--bvecs={bvecs_path}",
+            f"--bvals={bvals_path}",
+            f"--out={output_path}"
+        ]).returncode
+
+    return ret_code
 
 
 def process_one_subject(input_path: Union[str, Path],
@@ -170,6 +189,7 @@ def process_one_subject(input_path: Union[str, Path],
         protocol_names: list of names of DTI protocol names to locate DTI data 
             files from raw data.
         n_gradients: Number of gradients directions in a DTI volume.
+        bet_f_thresh: `-f` flag value for FSL's BET command.
         strip_skull: Whether to remove the skull or not. BET will be used for
             this step with -F flag for 4D data processing
             [default: True]
@@ -191,15 +211,15 @@ def process_one_subject(input_path: Union[str, Path],
     logging.debug("Converting DICOM to NIfTI...")
     # Create new folder to store nifti files
     nifti_path = output_path/f'1_nifti/{subject_name}'
-    # ret_code = convert_raw_dicom_to_nifti(input_path=input_path,
-    #                                       output_path=nifti_path,
-    #                                       method=method,
-    #                                       gz=gz,
-    #                                       reorient=reorient)
-    # if ret_code != 0:  # Stop here if any error
-    #     _errmsg = "Error in `convert_dicom_to_nifti` execution :(. Stopped."
-    #     logging.error(_errmsg)
-    #     raise RuntimeError(_errmsg)
+    ret_code = convert_raw_dicom_to_nifti(input_path=input_path,
+                                          output_path=nifti_path,
+                                          method=method,
+                                          gz=gz,
+                                          reorient=reorient)
+    if ret_code != 0:  # Stop here if any error
+        _errmsg = "Error in `convert_dicom_to_nifti` execution :(. Stopped."
+        logging.error(_errmsg)
+        raise RuntimeError(_errmsg)
 
     # * Locate required DTI data files
     interm_path = output_path/f'2_interm/{subject_name}'
@@ -223,7 +243,10 @@ def process_one_subject(input_path: Union[str, Path],
     acqp_path = interm_path/"acqparams.txt"
     if 'json' in dti_paths.keys():
         with open(str(dti_paths['json'])) as jfile:
-            ro_time = json.load(jfile)['EchoTime']
+            info_dict = json.load(jfile)
+            ro_time = info_dict['EchoTime']
+            # For eddy command
+            json_path = dti_paths['json'] if 'SliceTiming' in info_dict else None
     else:
         ro_time = 0.05
     ret_code = make_acquisition_params(ro_time, [0, -1, 0], None, acqp_path)
@@ -269,18 +292,7 @@ def process_one_subject(input_path: Union[str, Path],
     logging.info(f"Created index file at `{index_path}`.")
     # Run eddy
     eddy_output_path = interm_path/"eddy_unwarped"
-    json_path = dti_paths['json'] if 'json' in dti_paths.keys() else None
     logging.info('Running eddy...')
-    print()
-    print(dti_paths['nifti'])
-    print(brain_mask_path)
-    print(index_path)
-    print(acqp_path)
-    print(dti_paths['bvec'])
-    print(dti_paths['bval'])
-    print(topup_output_path)
-    print(eddy_output_path)
-    print()
     ret_code = run_eddy(input_path=dti_paths['nifti'],
                         brain_mask_path=brain_mask_path,
                         index_path=index_path,
@@ -289,7 +301,8 @@ def process_one_subject(input_path: Union[str, Path],
                         bvals_path=dti_paths['bval'],
                         topup_path=topup_output_path,
                         output_path=eddy_output_path,
-                        json_path=json_path # Multiband info (Getting `SliceTiming` error)
+                        # Multiband info (Getting `SliceTiming` error)
+                        json_path=json_path
                         )
     if ret_code != 0:  # Stop here if any error
         _msg = "Error in `run_eddy` execution :(. Stopped."
@@ -297,13 +310,132 @@ def process_one_subject(input_path: Union[str, Path],
         raise RuntimeError(_msg)
     logging.info("Eddy completed!")
 
-    # # If True, Strip skull of eddy corrected 4D DTI data using BET with -F flag
-    # if strip_skull:
-    #     logging.info(f"Striping skull of DTI eddy corrected data...")
-    #     dti_skull_strip(eddy_output_path, eddy_output_path)
-    #     logging.info("done.")
+    eddy_corrected_dti = str(eddy_output_path).replace('.nii.gz', '')
+    eddy_corrected_dti_mask = f"{eddy_corrected_dti}_mask"
 
-    # logging.info(f"Saved @ {output_path}")
-    # logging.info("done.")
+    # If True, Strip skull of eddy corrected 4D DTI data using BET with -F flag
+    if strip_skull:
+        logging.info(f"Applying brain mask to remove non-brain parts...",
+                     end=' ')
+        ret_code = (fslmaths(eddy_output_path)
+                    .mul(brain_mask_path)
+                    .run(eddy_output_path).returncode)
+        logging.info("done.")
+        if ret_code != 0:  # Stop here if any error
+            _msg = "Error in fslmaths while applying brain mask :(. Stopped."
+            logging.error(_msg)
+            raise RuntimeError(_msg)
+        # generate new eddy mask based on skull stripped data
+        ret_code = subprocess.run([
+            'fslmaths', eddy_output_path, '-thrP', '10', '-bin', eddy_corrected_dti_mask
+        ]).returncode
+        if ret_code != 0:  # Stop here if any error
+            _msg = "Error in new mask generation :(. Stopped."
+            logging.error(_msg)
+            raise RuntimeError(_msg)
 
+    # * DTIFIT - fitting diffusion tensors
+    processed_path = output_path/f"3_processed/{subject_name}"
+    processed_path.mkdir(parents=True, exist_ok=True)
+    fit_output_path = processed_path/'dti'
+    logging.debug("Running dtifit...")
+
+    ret_code = run_dtifit(eddy_corrected_dti,
+                          eddy_corrected_dti_mask,
+                          bvecs_path=dti_paths['bvec'],
+                          bvals_path=dti_paths['bval'],
+                          output_path=fit_output_path)
+    if ret_code != 0:  # Stop here if any error
+        _msg = "Error in `run_dtifit` execution :(. Stopped."
+        logging.error(_msg)
+        raise RuntimeError(_msg)
+    logging.debug(f"Tensor fitted file saved @ `{fit_output_path}`")
     return 0
+
+
+def process_multi_subjects(input_path: Union[str, Path],
+                           output_path: Union[str, Path],
+                           protocol_names: list,
+                           n_gradients: int,
+                           method: str = "dcm2nii",
+                           exclude_list: list = [],
+                           bet_f_thresh: float = 0.5,
+                           strip_skull: bool = True,
+                           gz: bool = True,
+                           reorient: bool = True) -> int:
+    """Process DTI data for multiple subjects.
+
+    The steps involved in this pipeline are mentioned above.
+
+    Args:
+        input_path: path to subjects data where each subject's data can be
+            zip file or folder containing DICOM files.
+        output_path: folder location where outputs will be saved.
+        protocol_names: list of names of DTI protocol names to locate DTI data 
+            files from raw data.
+        n_gradients: Number of gradients directions in a DTI volume.
+        method: select a DICOM to NIfTI conversion method. Choose one of
+            the following conversion methods: `auto` (whichever works best for
+            each subject), `dicom2nifti` (python package), `dcm2nii` (MRICron),
+            and `dcm2niix` (newer version of dcm2nii). 
+            [default: `auto`]
+        exclude_list: add the name of the subjects you do not want to process
+            in the folder.
+        bet_f_thresh: `-f` flag value for FSL's BET command.
+        strip_skull: Whether to remove the skull or not. BET will be used for
+            this step with -F flag for 4D data processing. 
+            [default: True]
+        gz: compress .nii to .nii.gz. [default: True]
+        reorient: reorient the dicoms according to LAS orientation.
+            [default: True]
+
+    Returns:
+        exit code 0 upon successful execution.
+        Otherwise, throws corresponding error
+    """
+
+    input_path, output_path = Path(input_path), Path(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    subjects_paths, error_list = list(input_path.glob("*")), []
+    total_subjects = len(subjects_paths)
+    for i, subject_path in enumerate(subjects_paths, start=1):
+        if (subject_path.stem in exclude_list) and (len(exclude_list) != 0):
+            logging.info(
+                f"Subject {subject_path} is in the excluded list. Skipped.")
+            continue
+        logging.info(
+            f"{'='*15}[{i}/{total_subjects}] Processing `{subject_path}`{'='*15}")
+        # Run processing steps for each subject
+        try:
+            exit_code = process_one_subject(input_path=subject_path,
+                                            output_path=output_path,
+                                            method=method,
+                                            protocol_names=protocol_names,
+                                            n_gradients=n_gradients,
+                                            bet_f_thresh=bet_f_thresh,
+                                            strip_skull=strip_skull,
+                                            gz=gz,
+                                            reorient=reorient)
+            if exit_code == 0:
+                logging.info(f"Proessing completed for `{subject_path}`.")
+            else:
+                _msg = f"Error in processing subject `{subject_path}`"
+                logging.error(_msg)
+                raise RuntimeError(_msg)
+
+        except:
+            _msg = f"Error in processing subject `{subject_path}`"
+            error_list.append(subject_path)
+            logging.error(_msg)
+
+    if error_list:
+        print("="*10, f"{len(error_list)} Subjects with Errors", "="*10)
+        for es in error_list:
+            print(es)
+        print("="*40)
+        return len(error_list)
+    else:
+        print("="*30)
+        print("All subjects completed without errors.")
+        return 0

@@ -9,6 +9,7 @@ protocol_names: [
 # Number of gradient directions per DTI volume
 n_gradients: 16
 
+
 #* FULL PATHS TO FOLDERS AND FILES
 paths:
   # Main folders in project tree

@@ -47,7 +47,7 @@ def locate_dti_files(input_path: Union[str, Path],
     # Make protocol and series based pairs
     dti_series_dict = {}
     for protocol_name in protocol_names:
-        for bvec_filename, bval_filename in zip(bval_paths, bvec_paths):
+        for bval_filename, bvec_filename in zip(bval_paths, bvec_paths):
             _errmsg = ".bval and .bvec have different filenames."
             assert bvec_filename.stem == bval_filename.stem, _errmsg
 

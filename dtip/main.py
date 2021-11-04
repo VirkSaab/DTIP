@@ -140,6 +140,19 @@ def make_b0(input_path: str, output_path: str, idx: str):
 # ----------------------------------------> PROCESS :
 @cli.command()
 @click.argument('input_path', type=click.Path(exists=True))
+@click.option('-m', '--mask_path', type=click.Path(exists=True), help="path/to/brain_mask.nii.gz")
+@click.option('-o', '--output_path', default='masked.nii.gz', show_default=True, help="path/to/file/masked.nii.gz")
+def apply_mask(input_path, mask_path, output_path):
+    from fsl.wrappers.fslmaths import fslmaths
+    ret_code = (fslmaths(input_path)
+                    .mul(mask_path)
+                    .run(output_path).returncode)
+    if ret_code == 0:
+        click.secho('[@ apply-mask] completed!\n', fg='green')
+
+
+@cli.command()
+@click.argument('input_path', type=click.Path(exists=True))
 @click.option("-o", "--output_path", default="./processed", show_default=True, help="folder location to save output files.")
 @click.option('-m', '--method', type=click.Choice(['auto', 'dcm2nii', 'dcm2niix'], case_sensitive=False), show_default=True, default="dcm2nii", help="`auto` (use both dcm2nii and dcm2niix), `dcm2nii` (MRICron), and `dcm2niix` (newer version of dcm2nii).")
 @click.option('--ss/--no-ss', default=True, show_default=True, help="Perform skull stripping on DTI data. This step will be performed on eddy corrected DTI data.")
@@ -158,6 +171,38 @@ def process(input_path, output_path, method, ss):
                                    strip_skull=ss)
     if ret_code == 0:
         click.secho('[@ process] completed!\n', fg='green')
+
+
+@cli.command()
+@click.argument('input_path', type=click.Path(exists=True))
+@click.option("-o", "--output_path", default="./processed", show_default=True, help="folder location to save output files.")
+@click.option('-m', '--method', type=click.Choice(['auto', 'dcm2nii', 'dcm2niix'], case_sensitive=False), show_default=True, default="dcm2nii", help="`auto` (use both dcm2nii and dcm2niix), `dcm2nii` (MRICron), and `dcm2niix` (newer version of dcm2nii).")
+@click.option("-x", "--exclude", default='', type=str, show_default=True, help="comma separted subject names to exclude.")
+@click.option("-f", "--fracintensity", default=0.5, type=float, show_default=True, help="`-f` flag value for FSL's BET command.")
+@click.option('--ss/--no-ss', default=True, show_default=True, help="Perform skull stripping on DTI data. This step will be performed on eddy corrected DTI data.")
+def process_multi(input_path, output_path, method, ss, exclude, fracintensity):
+    """Perform DTI processing on multiple subjects.
+
+        INPUT_PATH - path to subject folder or zip file.
+    """
+    from dtip.process import process_multi_subjects
+    exclude_list = [
+        v.strip().lstrip().rstrip()
+        for v in str(exclude).split(',')
+    ]
+    ret_code = process_multi_subjects(input_path=input_path,
+                                      output_path=output_path,
+                                      protocol_names=CNF.protocol_names,
+                                      n_gradients=CNF.n_gradients,
+                                      method=method,
+                                      exclude_list=exclude_list,
+                                      bet_f_thresh=fracintensity,
+                                      strip_skull=ss)
+    if ret_code == 0:
+        click.secho('[@ process-multi] completed!\n', fg='green')
+    else:
+        _errmsg = f"[@ process-multi] completed (with {ret_code} error subjects)!"
+        click.secho(f'{_errmsg}\n', fg='yellow')
 
 
 if __name__ == '__main__':
