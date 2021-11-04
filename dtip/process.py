@@ -69,9 +69,7 @@ def run_topup(input_path: Union[str, Path],
                           fout=fout_output_path,
                           verbose=True)
     else:
-        _msg = 'b0 does not match AP-PA requirements. '
-        _msg += 'Skipping TOPUP and returning `input_path`'
-        logging.warning(_msg)
+        logging.warning('b0 does not match AP-PA requirements. Skipping TOPUP')
         return input_path
     return 0
 
@@ -315,8 +313,7 @@ def process_one_subject(input_path: Union[str, Path],
 
     # If True, Strip skull of eddy corrected 4D DTI data using BET with -F flag
     if strip_skull:
-        logging.info(f"Applying brain mask to remove non-brain parts...",
-                     end=' ')
+        logging.info(f"Applying brain mask to remove non-brain parts...")
         ret_code = (fslmaths(eddy_output_path)
                     .mul(brain_mask_path)
                     .run(eddy_output_path).returncode)
