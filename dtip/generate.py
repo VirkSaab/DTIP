@@ -2,13 +2,12 @@ from pathlib import Path
 from typing import Union
 import nibabel as nib
 
-__all__ = [
-    'make_index_file', 'make_acquisition_params'
-]
+__all__ = ["make_index_file", "make_acquisition_params"]
 
 
-def make_index_file(input_path: Union[str, Path],
-                    output_path: Union[str, Path] = 'index.txt') -> int:
+def make_index_file(
+    input_path: Union[str, Path], output_path: Union[str, Path] = "index.txt"
+) -> int:
     """Create an index file with value 1 in each row per DTI volume.
 
     For example, there are 17 DTI volume (4th dimension) in DTIdata.nii.gz.
@@ -24,17 +23,18 @@ def make_index_file(input_path: Union[str, Path],
 
     img = nib.load(input_path)
     x, y, z, t = img.shape
-    with open(output_path, 'w') as idx_file:
+    with open(output_path, "w") as idx_file:
         for _ in range(t):
             idx_file.write(f"1\n")
     return 0
 
 
-def make_acquisition_params(readout_time: float,
-                            AP_PE: Union[list, str],
-                            PA_PE: Union[list, str],
-                            output_path: Union[str, Path] = "acqp.txt"
-                            ) -> int:
+def make_acquisition_params(
+    readout_time: float,
+    AP_PE: Union[list, str],
+    PA_PE: Union[list, str],
+    output_path: Union[str, Path] = "acqp.txt",
+) -> int:
     """Create the acquisition parameters file.
 
     This file contains the information with the PE direction, the sign of the
@@ -59,13 +59,13 @@ def make_acquisition_params(readout_time: float,
     if isinstance(AP_PE, str):
         AP_PE = AP_PE.split(",")
     if isinstance(PA_PE, str):
-        PA_PE = None if PA_PE == '' else PA_PE.split(",")
+        PA_PE = None if PA_PE == "" else PA_PE.split(",")
 
     first_line = f"{' '.join(map(str, AP_PE))} {readout_time}\n"
     if PA_PE:
         second_line = f"{' '.join(map(str, AP_PE))} {readout_time}"
 
-    with open(output_path, 'w') as acq_file:
+    with open(output_path, "w") as acq_file:
         acq_file.write(first_line)
         if PA_PE:
             acq_file.write(second_line)

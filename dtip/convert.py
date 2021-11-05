@@ -5,16 +5,16 @@ from pathlib import Path
 from dtip.utils import SpinCursor
 
 
-__all__ = [
-    "convert_dicom_to_nifti", "fsl_to_dtitk_multi", "dtitk_to_fsl_multi"
-]
+__all__ = ["convert_dicom_to_nifti", "fsl_to_dtitk_multi", "dtitk_to_fsl_multi"]
 
 
-def convert_raw_dicom_to_nifti(input_path: Union[str, Path],
-                               output_path: Union[str, Path],
-                               method: str = "dcm2nii",
-                               gz: bool = True,
-                               reorient: bool = True) -> int:
+def convert_raw_dicom_to_nifti(
+    input_path: Union[str, Path],
+    output_path: Union[str, Path],
+    method: str = "dcm2nii",
+    gz: bool = True,
+    reorient: bool = True,
+) -> int:
     """Convert raw DICOM files in `input_path` to NIfTI `.nii` or `.nii.gz` files.
 
     Args:
@@ -44,19 +44,19 @@ def convert_raw_dicom_to_nifti(input_path: Union[str, Path],
     if method == "auto":
         exit_code = method_dcm2nii(input_path, output_path, gz, reorient)
         x_exit_code = method_dcm2niix(input_path, output_path, gz, reorient)
-        _err_msg = '[@ `convert_raw_dicom_to_nifti`] problem in auto method.'
+        _err_msg = "[@ `convert_raw_dicom_to_nifti`] problem in auto method."
         if exit_code + x_exit_code != 0:
             logging.error(_err_msg)
         assert exit_code + x_exit_code == 0, _err_msg
     elif method == "dcm2nii":
         exit_code = method_dcm2nii(input_path, output_path, gz, reorient)
-        _err_msg = '[@ `convert_raw_dicom_to_nifti`] problem in method_dcm2nii method.'
+        _err_msg = "[@ `convert_raw_dicom_to_nifti`] problem in method_dcm2nii method."
         if exit_code != 0:
             logging.error(_err_msg)
         assert exit_code == 0, _err_msg
     elif method == "dcm2niix":
         exit_code = method_dcm2niix(input_path, output_path, gz, reorient)
-        _err_msg = '[@ `convert_raw_dicom_to_nifti`] problem in method_dcm2niix method.'
+        _err_msg = "[@ `convert_raw_dicom_to_nifti`] problem in method_dcm2niix method."
         if exit_code != 0:
             logging.error(_err_msg)
         assert exit_code == 0, _err_msg
@@ -69,10 +69,12 @@ def convert_raw_dicom_to_nifti(input_path: Union[str, Path],
     return 0
 
 
-def method_dcm2nii(input_path: Union[str, Path],
-                   output_path: Union[str, Path],
-                   gz: bool = True,
-                   reorient: bool = True) -> int:
+def method_dcm2nii(
+    input_path: Union[str, Path],
+    output_path: Union[str, Path],
+    gz: bool = True,
+    reorient: bool = True,
+) -> int:
     """DICOM to NIfTI conversion using dcm2nii command.
 
     Args:
@@ -85,18 +87,18 @@ def method_dcm2nii(input_path: Union[str, Path],
         exit_code 0 if no errors. else 1.
     """
 
-    command = ['dcm2nii', '-4', 'Y']
+    command = ["dcm2nii", "-4", "Y"]
     if gz:
-        command += ['-g', 'Y']
+        command += ["-g", "Y"]
     if reorient:
-        command += ['-x', 'Y']
-    command += ['-t', 'Y', '-d', 'N', '-o', output_path, input_path]
+        command += ["-x", "Y"]
+    command += ["-t", "Y", "-d", "N", "-o", output_path, input_path]
 
-    with SpinCursor('dcm2nii conversion...', end='conversion completed!'):
+    with SpinCursor("dcm2nii conversion...", end="conversion completed!"):
         try:
             subprocess.run(command)  # Run command
             # Get metadata in JSON files
-            subprocess.run(['dcm2niix', '-b', 'o', '-o', output_path, input_path])
+            subprocess.run(["dcm2niix", "-b", "o", "-o", output_path, input_path])
             return 0
 
         except FileNotFoundError:
@@ -104,10 +106,12 @@ def method_dcm2nii(input_path: Union[str, Path],
             return 1
 
 
-def method_dcm2niix(input_path: Union[str, Path],
-                    output_path: Union[str, Path],
-                    gz: bool = True,
-                    reorient: bool = True) -> int:
+def method_dcm2niix(
+    input_path: Union[str, Path],
+    output_path: Union[str, Path],
+    gz: bool = True,
+    reorient: bool = True,
+) -> int:
     """DICOM to NIfTI conversion using dcm2niix command.
 
     Args:
@@ -123,12 +127,12 @@ def method_dcm2niix(input_path: Union[str, Path],
     command = ["dcm2niix"]
 
     if gz:
-        command += ['-z', 'y']
+        command += ["-z", "y"]
     if reorient:
-        command += ['-x', 'y']
-    command += ['-b', 'y', '-p', 'y', '-f', '%p_s%s', '-o', output_path, input_path]
+        command += ["-x", "y"]
+    command += ["-b", "y", "-p", "y", "-f", "%p_s%s", "-o", output_path, input_path]
 
-    with SpinCursor('dcm2niix conversion...', end='conversion completed!'):
+    with SpinCursor("dcm2niix conversion...", end="conversion completed!"):
         try:
             subprocess.run(command)  # Run command
             return 0
