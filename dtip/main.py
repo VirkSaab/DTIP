@@ -108,6 +108,27 @@ def convert(
         click.secho("[@ convert] completed!\n", fg="green")
 
 
+@cli.command()
+@click.argument("input_path", type=click.Path(exists=True))
+@click.option(
+    "-o",
+    "--output_path",
+    default="./dtitk_converted",
+    show_default=True,
+    help="folder location to save outputs.",
+)
+def fsl_dtitk_multi(input_path, output_path):
+    """Convert FSL to DTI-TK format for registration for multiple subjects"""
+    import os
+    from dtip.convert import fsl_to_dtitk_multi
+
+    total_subjects = os.listdir(input_path)
+    ret_code = fsl_to_dtitk_multi(input_path, output_path)
+    if ret_code == 0:
+        click.secho(f"Converted {total_subjects} subjects.", fg='cyan')
+        click.secho("[@ fsl-dtitk-multi] completed!\n", fg="green")
+
+
 # ----------------------------------------> LOCATE :
 @cli.command()
 @click.argument("input_path", type=click.Path(exists=True))
@@ -208,6 +229,48 @@ def make_b0(input_path: str, output_path: str, idx: str):
     click.secho("[@ make-b0] completed!\n", fg="green")
 
 
+@cli.command()
+@click.argument("input_path", type=click.Path(exists=True))
+@click.argument("ref_template_path", type=click.Path(exists=True))
+@click.option(
+        "-o", 
+        "--output_path", 
+        default="bootstrapped_template.nii.gz", 
+        show_default=True,
+        help="path/to/save/bootstrapped_template.nii.gz")
+def bootstrap_template(input_path, ref_template_path, output_path):
+    """Create a bootstrap template from the given subjects using DTI's 
+        `dti_template_bootstrap` command.
+    """
+    import os
+    import shutil
+    import subprocess
+    dtitk_dir = f"{ROOT_DIR}/dtitk"
+    os.environ["DTITK_ROOT"] = dtitk_dir
+    os.environ["PATH"] += f":{dtitk_dir}/bin:{dtitk_dir}/utilities:{dtitk_dir}/scripts"
+    subs_filepaths = [
+        subject_path/'dti_dtitk.nii.gz'
+        for subject_path in Path(input_path).glob('*')
+        if subject_path.is_dir()
+            ]
+    # Create a file with subjects paths
+    subs_filepath = Path(output_path).parent/"subs.txt"
+    with open(subs_filepath, "w") as subf:
+        for filepath in subs_filepaths:
+            subf.write(f"{filepath}\n")
+    # Run template bootstrap command
+    ret_code = subprocess.run([
+        'dti_template_bootstrap', str(ref_template_path), str(subs_filepath)
+        ]).returncode
+    if ret_code != 0:
+        _errmsg = "Something wrong with `dti_template_bootstrap` execution"
+        raise RuntimeError(_errmsg)
+    # Move the generated mean_initial template to `output_path`
+    shutil.move('mean_initial.nii.gz', output_path)
+    if ret_code == 0:
+        click.secho("[@ bootstrap-template] completed!\n", fg="green")
+
+
 # ----------------------------------------> PROCESS :
 @cli.command()
 @click.argument("input_path", type=click.Path(exists=True))
@@ -222,6 +285,8 @@ def make_b0(input_path: str, output_path: str, idx: str):
     help="path/to/file/masked.nii.gz",
 )
 def apply_mask(input_path, mask_path, output_path):
+    """Apply mask on the 3D or 4D DTI volume by multiplying the mask with data.
+    """
     from fsl.wrappers.fslmaths import fslmaths
 
     ret_code = fslmaths(input_path).mul(mask_path).run(output_path).returncode

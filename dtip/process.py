@@ -25,7 +25,7 @@ from fsl.wrappers.misc import fslroi
 from fsl.wrappers import eddy as fsleddy
 from fsl.wrappers.fslmaths import fslmaths
 from fsl.wrappers.bet import bet
-from dtip.utils import SpinCursor
+from dtip.utils import SpinCursor, show_exec_time
 from dtip.convert import convert_raw_dicom_to_nifti
 from dtip.locate import locate_dti_files
 from dtip.generate import make_acquisition_params, make_index_file
@@ -33,7 +33,7 @@ from dtip.generate import make_acquisition_params, make_index_file
 
 __all__ = ["process_one_subject", "run_topup", "run_eddy"]
 
-
+@show_exec_time
 def run_topup(
     input_path: Union[str, Path],
     acqp_path: Union[str, Path],
@@ -75,7 +75,7 @@ def run_topup(
         return input_path
     return 0
 
-
+@show_exec_time
 def run_eddy(
     input_path: Union[str, Path],
     brain_mask_path: Union[str, Path],
@@ -133,7 +133,7 @@ def run_eddy(
             return 1
     return 0
 
-
+@show_exec_time
 def run_dtifit(
     input_path: Union[str, Path],
     brain_mask_path: Union[str, Path],
@@ -173,7 +173,7 @@ def run_dtifit(
 
     return ret_code
 
-
+@show_exec_time
 def process_one_subject(
     input_path: Union[str, Path],
     output_path: Union[str, Path],
@@ -374,7 +374,7 @@ def process_one_subject(
     logging.debug(f"Tensor fitted file saved @ `{fit_output_path}`")
     return 0
 
-
+@show_exec_time
 def process_multi_subjects(
     input_path: Union[str, Path],
     output_path: Union[str, Path],
