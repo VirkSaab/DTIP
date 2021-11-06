@@ -6,9 +6,14 @@ protocol_names: [
   'xDTImediumiso', 'dti_medium_iso'
 ]
 
+# f threshold value for BET command for skull stripping
+frac_intensity: 0.3
+
+# Number of diffeomorphic ailgnment iterations
+n_diffeo_iters: 6 # 6 is maximum iterations you can set
+
 # Number of gradient directions per DTI volume
 n_gradients: 16
-
 
 #* FULL PATHS TO FOLDERS AND FILES
 paths:

@@ -14,6 +14,13 @@ from dtip.convert import fsl_to_dtitk_multi
 from dtip.utils import show_exec_time
 
 
+__all__ = [
+        'dtitk_register_multi',
+        'template_to_subject_space',
+        'template_to_subject_space_multi'
+        ]
+
+
 @show_exec_time
 def dtitk_register_multi(
     input_path: Union[str, Path],
@@ -185,3 +192,109 @@ def dtitk_register_multi(
                 output_path/'bootstrapped_template.nii.gz')
     logging.info("Registration complete!")
     return 0
+
+
+def template_to_subject_space(subject_dir_path: Union[str, Path], 
+                              template_path: Union[str, Path],
+                              transform_type: str) -> int:
+    """Transform the template to the subject space.
+        This function uses DTI-TK tool to perform transformations.
+
+        This function is based on the following tutorial:
+            http://dti-tk.sourceforge.net/pmwiki/pmwiki.php?n=Documentation.OptionspostReg
+
+    Args:
+        subject_dir_path: Subject folder path containing `subj.nii.gz` and
+            `subj.aff` files to perform affine or diffeomorphic transformation. 
+            If the `transform_type` argument is `diffeo` then `subj.df.nii.gz`
+            file should be present as well.
+        template_path: Path to the template or atlas file to transform to 
+            the subject space.
+        transform_type: Either `affine` for affine transformation or `diffeo`
+            for diffeomorphic transformation.
+
+    Returns:
+        exit code 0 on successful execution
+    """
+
+    subject_dir_path = Path(subject_dir_path)
+    if not subject_dir_path.is_dir():
+        raise ValueError("`subject_dir_path` must be a folder.")
+    if transform_type == 'affine':  # perform affine transformation only
+        subject_path = subject_dir_path/'dti_dtitk.nii.gz'
+        aff_path = subject_dir_path/'dti_dtitk.aff'
+        inv_aff_path = subject_dir_path/'dti_dtitk_inv.aff'
+        savepath = subject_dir_path/Path(template_path).stem.replace('.nii', '')
+        savepath = f"{savepath}_dti_space.nii.gz"
+        # Compute the inverse of affine matrix
+        ret_code = subprocess.run([
+            'affine3Dtool', '-in', aff_path, '-invert', '-out', inv_aff_path
+            ]).returncode
+        if ret_code != 0:
+            raise RuntimeError("Something wrong with affine3Dtool subprocess.")
+
+        ret_code = subprocess.run([
+            'affineScalarVolume', '-in', template_path, '-trans', inv_aff_path,
+            '-target', subject_path, '-interp', '1', '-out', savepath
+            ]).returncode
+
+        if ret_code != 0:
+            raise RuntimeError("Something wrong with affineScalarVolume subprocess.")
+    else:
+        raise NotImplementedError("Diffeomorphic is not yet implemented.")
+
+    return 0
+
+
+@show_exec_time
+def template_to_subject_space_multi(subjects_dir_path: Union[str, Path], 
+                                    template_path: Union[str, Path],
+                                    transform_type: str) -> int:
+    """Transform the template to the subject space.
+        This function uses DTI-TK tool to perform transformations.
+
+        This function is based on the following tutorial:
+            http://dti-tk.sourceforge.net/pmwiki/pmwiki.php?n=Documentation.OptionspostReg
+
+    Args:
+        subjects_dir_path: Parent folder path containing subject folder 
+            containing `subj.nii.gz` and `subj.aff` files to perform 
+            affine or diffeomorphic transformation. If the `transform_type` 
+            argument is `diffeo` then `subj.df.nii.gz` file should be present
+            as well.
+        template_path: Path to the template or atlas file to transform to 
+            the subject space.
+        transform_type: Either `affine` for affine transformation or `diffeo`
+            for diffeomorphic transformation.
+
+    Returns:
+        exit code 0 on successful execution
+    """
+    error_list = []
+    template_path = Path(template_path)
+    subjects_paths = [
+        p for p in Path(subjects_dir_path).glob('*')
+        if p.is_dir()
+    ]
+    total_subjects = len(subjects_paths)
+    logging.debug("Starting template to subject space transform...")
+    for i, subject_path in enumerate(subjects_paths, start=1):
+        ret_code = template_to_subject_space(subject_dir_path=subject_path,
+                                             template_path=template_path,
+                                             transform_type=transform_type)
+        if ret_code == 0:
+            logging.info(f"[{i}/{total_subjects}] Transformed `{template_path.name}` to `{subject_path.name}`")
+        else:
+            logging.warning(f"Error transforming {subject_path.stem}. Skipped.")
+            error_list.append(subject_path.stem)
+        
+    if error_list:
+        print("=" * 10, f"{len(error_list)} Subjects with Errors", "=" * 10)
+        for es in error_list:
+            print(es)
+        print("=" * 44)
+        return len(error_list)
+    else:
+        print("=" * 30)
+        print("All subjects completed without errors.")
+        return 0

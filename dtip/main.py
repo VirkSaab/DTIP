@@ -462,5 +462,51 @@ def register_multi(
         click.secho("[@ process-multi] completed!\n", fg="green")
 
 
+@cli.command()
+@click.argument("input_path", type=click.Path(exists=True))
+@click.argument("template_path", type=click.Path(exists=True))
+@click.option(
+    "-tt",
+    "--transform_type",
+    type=click.Choice(["affine", "diffeo"], case_sensitive=False),
+    show_default=True,
+    default="affine",
+    help="Use affine or diffeomorphic transformation.",
+)
+def template_to_subject(input_path, template_path, transform_type):
+    """Transform the template to the subject space."""
+
+    from dtip.register import template_to_subject_space
+
+    ret_code = template_to_subject_space(subject_dir_path=input_path,
+                                         template_path=template_path,
+                                         transform_type=transform_type)
+    if ret_code == 0:
+        click.secho("[@ template-to-subject] completed!\n", fg="green")
+
+
+@cli.command()
+@click.argument("input_path", type=click.Path(exists=True))
+@click.argument("template_path", type=click.Path(exists=True))
+@click.option(
+    "-tt",
+    "--transform_type",
+    type=click.Choice(["affine", "diffeo"], case_sensitive=False),
+    show_default=True,
+    default="affine",
+    help="Use affine or diffeomorphic transformation.",
+)
+def template_to_subject_multi(input_path, template_path, transform_type):
+    """Transform the template to the subject space for multiple subjects."""
+
+    from dtip.register import template_to_subject_space_multi
+
+    ret_code = template_to_subject_space_multi(subjects_dir_path=input_path,
+                                               template_path=template_path,
+                                               transform_type=transform_type)
+    if ret_code == 0:
+        click.secho("[@ template-to-subject-multi] completed!\n", fg="green")
+    else:
+        click.secho(f"[@ template-to-subject-multi] completed (with {ret_code} error subjects)!\n", fg="yellow")
 if __name__ == "__main__":
     cli()
