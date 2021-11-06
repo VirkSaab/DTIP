@@ -332,6 +332,7 @@ def process(input_path, output_path, method, ss):
         method=method,
         protocol_names=CNF.protocol_names,
         n_gradients=CNF.n_gradients,
+        bet_f_thresh=CNF.frac_intensity,
         strip_skull=ss,
     )
     if ret_code == 0:
@@ -364,20 +365,12 @@ def process(input_path, output_path, method, ss):
     help="comma separted subject names to exclude.",
 )
 @click.option(
-    "-f",
-    "--fracintensity",
-    default=0.5,
-    type=float,
-    show_default=True,
-    help="`-f` flag value for FSL's BET command.",
-)
-@click.option(
     "--ss/--no-ss",
     default=True,
     show_default=True,
     help="Perform skull stripping on DTI data. This step will be performed on eddy corrected DTI data.",
 )
-def process_multi(input_path, output_path, method, ss, exclude, fracintensity):
+def process_multi(input_path, output_path, method, ss, exclude):
     """Perform DTI processing on multiple subjects.
 
         INPUT_PATH - path to subject folder or zip file.
@@ -393,7 +386,7 @@ def process_multi(input_path, output_path, method, ss, exclude, fracintensity):
         n_gradients=CNF.n_gradients,
         method=method,
         exclude_list=exclude_list,
-        bet_f_thresh=fracintensity,
+        bet_f_thresh=CNF.frac_intensity,
         strip_skull=ss,
     )
     if ret_code == 0:
