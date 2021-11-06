@@ -21,9 +21,8 @@ logging.config.fileConfig(
     disable_existing_loggers=False,
 )
 
+
 # ----------------------------------------> CLI ::
-
-
 # * Entry point
 @click.group(invoke_without_command=True, context_settings=CONTEXT_SETTINGS)
 @click.pass_context
@@ -102,7 +101,8 @@ def convert(
             )
             click.echo(f"[{i}/{total_subjects}] extracted at {save_folder}")
     else:
-        ret_code = convert_raw_dicom_to_nifti(input_path, output_path, method=method)
+        ret_code = convert_raw_dicom_to_nifti(
+            input_path, output_path, method=method)
 
     if ret_code == 0:
         click.secho("[@ convert] completed!\n", fg="green")
@@ -125,7 +125,7 @@ def fsl_dtitk_multi(input_path, output_path):
     total_subjects = os.listdir(input_path)
     ret_code = fsl_to_dtitk_multi(input_path, output_path)
     if ret_code == 0:
-        click.secho(f"Converted {total_subjects} subjects.", fg='cyan')
+        click.secho(f"Converted {total_subjects} subjects.", fg="cyan")
         click.secho("[@ fsl-dtitk-multi] completed!\n", fg="green")
 
 
@@ -233,11 +233,12 @@ def make_b0(input_path: str, output_path: str, idx: str):
 @click.argument("input_path", type=click.Path(exists=True))
 @click.argument("ref_template_path", type=click.Path(exists=True))
 @click.option(
-        "-o", 
-        "--output_path", 
-        default="bootstrapped_template.nii.gz", 
-        show_default=True,
-        help="path/to/save/bootstrapped_template.nii.gz")
+    "-o",
+    "--output_path",
+    default="bootstrapped_template.nii.gz",
+    show_default=True,
+    help="path/to/save/bootstrapped_template.nii.gz",
+)
 def bootstrap_template(input_path, ref_template_path, output_path):
     """Create a bootstrap template from the given subjects using DTI's 
         `dti_template_bootstrap` command.
@@ -245,28 +246,29 @@ def bootstrap_template(input_path, ref_template_path, output_path):
     import os
     import shutil
     import subprocess
+
     dtitk_dir = f"{ROOT_DIR}/dtitk"
     os.environ["DTITK_ROOT"] = dtitk_dir
     os.environ["PATH"] += f":{dtitk_dir}/bin:{dtitk_dir}/utilities:{dtitk_dir}/scripts"
     subs_filepaths = [
-        subject_path/'dti_dtitk.nii.gz'
-        for subject_path in Path(input_path).glob('*')
+        subject_path / "dti_dtitk.nii.gz"
+        for subject_path in Path(input_path).glob("*")
         if subject_path.is_dir()
-            ]
+    ]
     # Create a file with subjects paths
-    subs_filepath = Path(output_path).parent/"subs.txt"
+    subs_filepath = Path(output_path).parent / "subs.txt"
     with open(subs_filepath, "w") as subf:
         for filepath in subs_filepaths:
             subf.write(f"{filepath}\n")
     # Run template bootstrap command
-    ret_code = subprocess.run([
-        'dti_template_bootstrap', str(ref_template_path), str(subs_filepath)
-        ]).returncode
+    ret_code = subprocess.run(
+        ["dti_template_bootstrap", str(ref_template_path), str(subs_filepath)]
+    ).returncode
     if ret_code != 0:
         _errmsg = "Something wrong with `dti_template_bootstrap` execution"
         raise RuntimeError(_errmsg)
     # Move the generated mean_initial template to `output_path`
-    shutil.move('mean_initial.nii.gz', output_path)
+    shutil.move("mean_initial.nii.gz", output_path)
     if ret_code == 0:
         click.secho("[@ bootstrap-template] completed!\n", fg="green")
 
@@ -382,7 +384,8 @@ def process_multi(input_path, output_path, method, ss, exclude, fracintensity):
     """
     from dtip.process import process_multi_subjects
 
-    exclude_list = [v.strip().lstrip().rstrip() for v in str(exclude).split(",")]
+    exclude_list = [v.strip().lstrip().rstrip()
+                    for v in str(exclude).split(",")]
     ret_code = process_multi_subjects(
         input_path=input_path,
         output_path=output_path,
@@ -398,6 +401,72 @@ def process_multi(input_path, output_path, method, ss, exclude, fracintensity):
     else:
         _errmsg = f"[@ process-multi] completed (with {ret_code} error subjects)!"
         click.secho(f"{_errmsg}\n", fg="yellow")
+
+
+# ----------------------------------------> REGISTER :
+@cli.command()
+@click.argument("input_path", type=click.Path(exists=True))
+@click.option(
+    "-t", 
+    "template_path", 
+    type=click.Path(exists=True), 
+    default=None, 
+    show_default=True
+)
+@click.option(
+    "-btp",
+    "--bootstrapped_template_path",
+    type=click.Path(exists=True),
+    default=None,
+    show_default=True,
+)
+@click.option(
+    "-o",
+    "--output_path",
+    default="./register_output",
+    show_default=True,
+    help="path/to/save/register folder",
+)
+def register_multi(
+    input_path: str,
+    template_path: str,
+    bootstrapped_template_path: Union[str, None],
+    output_path: str,
+):
+    """Perform image registeration using existing template on the given
+        subjects using DTI-TK toolkit.
+
+    Args:
+        input_path: subject's preprocessed folder path.
+            Perform `dtip process-multi` command to preprocess the subjects
+            before registration.
+        template_path: Path of the template to use for registration. If
+            bootstrapped_template_path is given then this template will be
+            ignored.
+        bootstrapped_template_path: A manually created mean_initial template
+            using subjects data. This file can be created using
+            `dtip bootstrap-template` CLI command. If this template is given
+            step 1 and 2 (which are subject FSL to DTITK conversion and
+            initial template bootstrapping) will be skipped. The process will
+            start from affine alignment.
+        output_path: location to save the registration output files.
+
+    Returns:
+        exit code 0 on successful execution.
+    """
+    from dtip.register import dtitk_register_multi
+
+    if (template_path is None) and (bootstrapped_template_path is None):
+        raise ValueError("At least one template is required.")
+    ret_code = dtitk_register_multi(
+        input_path=input_path,
+        template_path=template_path,
+        bootstrapped_template_path=bootstrapped_template_path,
+        output_path=output_path,
+        n_diffeo_iters=CNF.n_diffeo_iters,
+    )
+    if ret_code == 0:
+        click.secho("[@ process-multi] completed!\n", fg="green")
 
 
 if __name__ == "__main__":

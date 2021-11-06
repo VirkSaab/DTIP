@@ -33,6 +33,7 @@ from dtip.generate import make_acquisition_params, make_index_file
 
 __all__ = ["process_one_subject", "run_topup", "run_eddy"]
 
+
 @show_exec_time
 def run_topup(
     input_path: Union[str, Path],
@@ -74,6 +75,7 @@ def run_topup(
         logging.warning("b0 does not match AP-PA requirements. Skipping TOPUP")
         return input_path
     return 0
+
 
 @show_exec_time
 def run_eddy(
@@ -133,6 +135,7 @@ def run_eddy(
             return 1
     return 0
 
+
 @show_exec_time
 def run_dtifit(
     input_path: Union[str, Path],
@@ -172,6 +175,7 @@ def run_dtifit(
         ).returncode
 
     return ret_code
+
 
 @show_exec_time
 def process_one_subject(
@@ -373,6 +377,7 @@ def process_one_subject(
         raise RuntimeError(_msg)
     logging.debug(f"Tensor fitted file saved @ `{fit_output_path}`")
     return 0
+
 
 @show_exec_time
 def process_multi_subjects(

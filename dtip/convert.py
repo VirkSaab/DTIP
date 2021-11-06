@@ -6,7 +6,8 @@ from pathlib import Path
 from dtip.utils import SpinCursor, show_exec_time
 
 
-__all__ = ['convert_raw_dicom_to_nifti', 'fsl_to_dtitk_multi']
+__all__ = ["convert_raw_dicom_to_nifti", "fsl_to_dtitk_multi"]
+
 
 @show_exec_time
 def convert_raw_dicom_to_nifti(
@@ -69,6 +70,7 @@ def convert_raw_dicom_to_nifti(
         raise NotImplementedError(_err_msg)
     return 0
 
+
 @show_exec_time
 def method_dcm2nii(
     input_path: Union[str, Path],
@@ -105,6 +107,7 @@ def method_dcm2nii(
         except FileNotFoundError:
             logging.error("[@ `dcm2nii`] Make sure `dcm2nii` is installed.")
             return 1
+
 
 @show_exec_time
 def method_dcm2niix(
@@ -144,8 +147,9 @@ def method_dcm2niix(
 
 
 @show_exec_time
-def fsl_to_dtitk_multi(input_path: Union[str, Path], 
-                    output_path: Union[str, Path]) -> int:
+def fsl_to_dtitk_multi(
+    input_path: Union[str, Path], output_path: Union[str, Path]
+) -> int:
     """Convert and adjust processed DTI nifti files using FSL to DTI-TK format 
         for registration.
 
@@ -158,32 +162,37 @@ def fsl_to_dtitk_multi(input_path: Union[str, Path],
     """
 
     input_path, output_path = Path(input_path), Path(output_path)
-    
-    for subject_path in input_path.glob('*'):
+
+    for subject_path in input_path.glob("*"):
         if not subject_path.is_dir():
             continue
         subject_basename = f"{subject_path}/dti"
-        dst = output_path/subject_path.stem
+        dst = output_path / subject_path.stem
         # Convert from FSL to DTI-TK
         _msg = f"Converting subject {subject_basename} from FSL to DTI-TK"
         logging.debug(_msg)
-        subprocess.run([
-            'fsl_to_dtitk', subject_basename
-            ])
-        logging.debug('done!')
+        subprocess.run(["fsl_to_dtitk", subject_basename])
+        logging.debug("done!")
         # Move the converted file to output folder
-        for filepath in subject_path.glob('dti_dtitk*'):
+        for filepath in subject_path.glob("dti_dtitk*"):
             dst.mkdir(parents=True, exist_ok=True)
-            dti_filepath = dst/filepath.name
+            dti_filepath = dst / filepath.name
             shutil.move(filepath, dti_filepath)
             if dti_filepath.name == "dti_dtitk.nii.gz":
                 # Adjust origin of the dtitk data to 0
-                logging.info('Adjusting origin to 0...')
-                subprocess.run([
-                    'TVAdjustVoxelspace', '-in', dti_filepath, '-origin',
-                    '0', '0', '0', '-out', dti_filepath
-                    ])
-                logging.info('done!')
+                logging.info("Adjusting origin to 0...")
+                subprocess.run(
+                    [
+                        "TVAdjustVoxelspace",
+                        "-in",
+                        dti_filepath,
+                        "-origin",
+                        "0",
+                        "0",
+                        "0",
+                        "-out",
+                        dti_filepath,
+                    ]
+                )
+                logging.info("done!")
     return 0
-
-
