@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Union
 from fastprogress import progress_bar
 from fsl.wrappers.fslmaths import fslmaths
-from dtip.utils import show_exec_time
 
 
 __all__ = ['ComputeSubjectROIStats', 'compute_mp_fn']
@@ -84,6 +83,7 @@ class ComputeSubjectROIStats:
         }
 
         for roi_num in progress_bar(self.rois_values, display=self.show_pb):
+            print("ROI_NUM =", roi_num)
             # Create binarized single ROI image
             (fslmaths(self.subject_space_pcl_path)
              .thr(roi_num)  # Threshold
@@ -136,10 +136,14 @@ class ComputeSubjectROIStats:
             roi_stats['rd_std'] = rd_img.std()
         return roi_stats
 
-@show_exec_time
-def compute_mp_fn(input_path, template_path, output_path):
+
+def compute_mp_fn(kwargs):
     """Compute wrapper function for compute-stats-multi multiprocessing command
     """
+
+    input_path = kwargs['input_path']
+    template_path = kwargs['template_path']
+    output_path = kwargs['output_path']
     logging.info(f"Computing ROI stats for {input_path}...")
     sstats = ComputeSubjectROIStats(input_path=input_path,
                                     subject_space_pcl_path=template_path,
@@ -150,4 +154,4 @@ def compute_mp_fn(input_path, template_path, output_path):
         logging.info("done!")
     else:
         logging.error(f"Error in computing stats for {input_path}")
-
+    return 0

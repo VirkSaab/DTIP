@@ -584,30 +584,37 @@ def compute_stats_multi(input_path,
     if subject_space_template_name is None:
         raise ValueError("Name of the subject space template is required.")
 
-    import os
-    from dtip.analysis import compute_mp_fn
-    from multiprocessing import Pool
+    from dtip.analysis import ComputeSubjectROIStats
 
-    subjects_paths = [
-            sp for sp in Path(input_path).glob('*')
-            if sp.is_dir()
-            ]
-    # Create subjects iterables for multiprocessing
-    input_paths = [sp/subject_name for sp in subjects_paths]
-    template_paths = [sp/subject_name for sp in subjects_paths]
-    output_paths = [output_path]*len(subjects_paths)
+    ret_list, error_list = [], []
+    for subject_path in Path(input_path).glob('*'):
+        if not subject_path.is_dir():
+            continue
+        logging.info(f"Computing ROI stats for {subject_path}...")
+        template_path = subject_path/subject_space_template_name
+        input_path = subject_path/subject_name
+        sstats = ComputeSubjectROIStats(input_path=input_path,
+                                        subject_space_pcl_path=template_path,
+                                        output_path=output_path)
+        ret_code = sstats.run()
+        if ret_code == 0:
+            ret_list.append(ret_code)
+            logging.info("done!")
+        else:
+            ret_list.append(1)
+            error_list.append(subject_path)
+            logging.error(f"Error in computing stats for {subject_path}")
 
-    with Pool(4) as p:
-        p.starmap(compute_mp_fn,
-                  zip(input_paths, template_paths, output_paths))
+    if error_list:
+        print('='*20, "Subjects with Errors:")
+        for err_sub in error_list:
+            print(f'\t{err_sub}')
+        print('='*44)
 
-    # Remove any remaining tmp files
-    for sp in subjects_paths:
-        tmp_filepath = f"{output_path}/{sp.stem}_tmp_roi.nii.gz"
-        if os.path.exists(tmp_filepath):
-            os.remove(tmp_filepath)
-
-    click.secho("[@ compute-stats-multi] completed!\n", fg="green")
+    if sum(ret_list) == 0:
+        click.secho("[@ compute-stats] completed!\n", fg="green")
+    else:
+        click.secho(f"[@ compute-stats] completed (with {len(error_list)} error subjects)!\n", fg="yellow")
 
 
 if __name__ == "__main__":
