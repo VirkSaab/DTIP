@@ -6,7 +6,6 @@ from dtip.utils import show_exec_time
 __all__ = ["make_index_file", "make_acquisition_params"]
 
 
-@show_exec_time
 def make_index_file(
     input_path: Union[str, Path], output_path: Union[str, Path] = "index.txt"
 ) -> int:
@@ -31,7 +30,6 @@ def make_index_file(
     return 0
 
 
-@show_exec_time
 def make_acquisition_params(
     readout_time: float,
     AP_PE: Union[list, str],

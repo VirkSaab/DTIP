@@ -34,7 +34,6 @@ from dtip.generate import make_acquisition_params, make_index_file
 __all__ = ["process_one_subject", "run_topup", "run_eddy"]
 
 
-@show_exec_time
 def run_topup(
     input_path: Union[str, Path],
     acqp_path: Union[str, Path],
@@ -136,7 +135,6 @@ def run_eddy(
     return 0
 
 
-@show_exec_time
 def run_dtifit(
     input_path: Union[str, Path],
     brain_mask_path: Union[str, Path],

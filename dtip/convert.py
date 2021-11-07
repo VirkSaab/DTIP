@@ -9,7 +9,6 @@ from dtip.utils import SpinCursor, show_exec_time
 __all__ = ["convert_raw_dicom_to_nifti", "fsl_to_dtitk_multi"]
 
 
-@show_exec_time
 def convert_raw_dicom_to_nifti(
     input_path: Union[str, Path],
     output_path: Union[str, Path],
@@ -71,7 +70,6 @@ def convert_raw_dicom_to_nifti(
     return 0
 
 
-@show_exec_time
 def method_dcm2nii(
     input_path: Union[str, Path],
     output_path: Union[str, Path],
@@ -109,7 +107,6 @@ def method_dcm2nii(
             return 1
 
 
-@show_exec_time
 def method_dcm2niix(
     input_path: Union[str, Path],
     output_path: Union[str, Path],
@@ -146,7 +143,6 @@ def method_dcm2niix(
             return 1
 
 
-@show_exec_time
 def fsl_to_dtitk_multi(
     input_path: Union[str, Path], output_path: Union[str, Path]
 ) -> int:

@@ -122,7 +122,7 @@ def fsl_dtitk_multi(input_path, output_path):
     import os
     from dtip.convert import fsl_to_dtitk_multi
 
-    total_subjects = os.listdir(input_path)
+    total_subjects = len(os.listdir(input_path))
     ret_code = fsl_to_dtitk_multi(input_path, output_path)
     if ret_code == 0:
         click.secho(f"Converted {total_subjects} subjects.", fg="cyan")
@@ -247,9 +247,9 @@ def bootstrap_template(input_path, ref_template_path, output_path):
     import shutil
     import subprocess
 
-    dtitk_dir = f"{ROOT_DIR}/dtitk"
-    os.environ["DTITK_ROOT"] = dtitk_dir
-    os.environ["PATH"] += f":{dtitk_dir}/bin:{dtitk_dir}/utilities:{dtitk_dir}/scripts"
+    #dtitk_dir = f"{ROOT_DIR}/dtitk"
+    #os.environ["DTITK_ROOT"] = dtitk_dir
+    #os.environ["PATH"] += f":{dtitk_dir}/bin:{dtitk_dir}/utilities:{dtitk_dir}/scripts"
     subs_filepaths = [
         subject_path / "dti_dtitk.nii.gz"
         for subject_path in Path(input_path).glob("*")
@@ -270,6 +270,7 @@ def bootstrap_template(input_path, ref_template_path, output_path):
     # Move the generated mean_initial template to `output_path`
     shutil.move("mean_initial.nii.gz", output_path)
     if ret_code == 0:
+        click.secho(f"template renamed and saved at {output_path}", fg="green")
         click.secho("[@ bootstrap-template] completed!\n", fg="green")
 
 

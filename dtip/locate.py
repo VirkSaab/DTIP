@@ -8,7 +8,6 @@ from dtip.utils import show_exec_time
 __all__ = ["locate_dti_files"]
 
 
-@show_exec_time
 def locate_dti_files(
     input_path: Union[str, Path],
     output_path: Union[str, Path],
