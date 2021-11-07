@@ -15,3 +15,6 @@ dtip register-multi -o /media/virk/MyEHDD/ITS/4_register/ /media/virk/MyEHDD/ITS
 
 # Template to subject space for multiple subjects 
 dtip template-to-subject-multi /media/virk/MyEHDD/ITS/4_register/ /media/virk/MyEHDD/templates/JHU_pcl_128.nii.gz
+
+# Compute ROI for a subject
+dtip compute-stats /media/virk/MyEHDD/ITS/4_register/1_1/dti_dtitk.nii.gz -tn JHU_pcl_128_dti_space.nii.gz -o /media/virk/MyEHDD/ITS/5_analysis

@@ -15,6 +15,9 @@ n_diffeo_iters: 6 # 6 is maximum iterations you can set
 # Number of gradient directions per DTI volume
 n_gradients: 16
 
+# 
+n_rois: 122
+
 #* FULL PATHS TO FOLDERS AND FILES
 paths:
   # Main folders in project tree

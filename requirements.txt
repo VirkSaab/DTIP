@@ -1,6 +1,9 @@
 click
+pandas
+numpy
 pyfiglet
 sphinx
 furo
 fslpy
 nibabel
+fastprogress

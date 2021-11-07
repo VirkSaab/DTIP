@@ -247,9 +247,9 @@ def bootstrap_template(input_path, ref_template_path, output_path):
     import shutil
     import subprocess
 
-    #dtitk_dir = f"{ROOT_DIR}/dtitk"
-    #os.environ["DTITK_ROOT"] = dtitk_dir
-    #os.environ["PATH"] += f":{dtitk_dir}/bin:{dtitk_dir}/utilities:{dtitk_dir}/scripts"
+    # dtitk_dir = f"{ROOT_DIR}/dtitk"
+    # os.environ["DTITK_ROOT"] = dtitk_dir
+    # os.environ["PATH"] += f":{dtitk_dir}/bin:{dtitk_dir}/utilities:{dtitk_dir}/scripts"
     subs_filepaths = [
         subject_path / "dti_dtitk.nii.gz"
         for subject_path in Path(input_path).glob("*")
@@ -401,10 +401,10 @@ def process_multi(input_path, output_path, method, ss, exclude):
 @cli.command()
 @click.argument("input_path", type=click.Path(exists=True))
 @click.option(
-    "-t", 
-    "template_path", 
-    type=click.Path(exists=True), 
-    default=None, 
+    "-t",
+    "template_path",
+    type=click.Path(exists=True),
+    default=None,
     show_default=True
 )
 @click.option(
@@ -509,5 +509,106 @@ def template_to_subject_multi(input_path, template_path, transform_type):
         click.secho("[@ template-to-subject-multi] completed!\n", fg="green")
     else:
         click.secho(f"[@ template-to-subject-multi] completed (with {ret_code} error subjects)!\n", fg="yellow")
+
+
+# ----------------------------------------> ANALYSIS :
+@cli.command()
+@click.argument("input_path", type=click.Path(exists=True))
+@click.option(
+    "-tn",
+    "subject_space_template_name",
+    type=str,
+    default=None,
+    show_default=True,
+    help="Name of the subject space transformed pracellation template.\
+    This template should be present in the same folder as input_path\
+    For example, JHU_128_pcl_dti_space.nii.gz"
+)
+@click.option(
+    "-o",
+    "--output_path",
+    default="./analysis_output",
+    show_default=True,
+    help="folder/path/to/save/output files",
+)
+def compute_stats(input_path, subject_space_template_name, output_path):
+    """Compute ROI stats for a subject."""
+
+    if subject_space_template_name is None:
+        raise ValueError("Name of the subject space template is required.")
+
+    from dtip.analysis import ComputeSubjectROIStats
+    
+    template_path = Path(input_path).parent/subject_space_template_name
+    sstats = ComputeSubjectROIStats(input_path=input_path,
+                                    subject_space_pcl_path=template_path,
+                                    output_path=output_path)
+    ret_code = sstats.run()
+    if ret_code == 0:
+        click.secho("[@ compute-stats] completed!\n", fg="green")
+
+
+@cli.command()
+@click.argument("input_path", type=click.Path(exists=True))
+@click.option(
+    "-sn",
+    "subject_name",
+    type=str,
+    default='dti_dtitk.nii.gz',
+    show_default=True,
+    help="Name of the subject's DTI data nifti file. For example, dti_dtitk.nii.gz"
+)
+@click.option(
+    "-tn",
+    "subject_space_template_name",
+    type=str,
+    default=None,
+    show_default=True,
+    help="Name of the subject space transformed pracellation template.\
+    This template should be present in the same folder as input_path"
+)
+@click.option(
+    "-o",
+    "--output_path",
+    default="./analysis_output",
+    show_default=True,
+    help="folder/path/to/save/output files",
+)
+def compute_stats_multi(input_path,
+                        subject_name,
+                        subject_space_template_name,
+                        output_path):
+    """Compute ROI stats for multiple subjects."""
+    if subject_name is None:
+        raise ValueError("subject name for DTI data nifti file is required.")
+    if subject_space_template_name is None:
+        raise ValueError("Name of the subject space template is required.")
+
+    import os
+    from dtip.analysis import compute_mp_fn
+    from multiprocessing import Pool
+
+    subjects_paths = [
+            sp for sp in Path(input_path).glob('*')
+            if sp.is_dir()
+            ]
+    # Create subjects iterables for multiprocessing
+    input_paths = [sp/subject_name for sp in subjects_paths]
+    template_paths = [sp/subject_name for sp in subjects_paths]
+    output_paths = [output_path]*len(subjects_paths)
+
+    with Pool(4) as p:
+        p.starmap(compute_mp_fn,
+                  zip(input_paths, template_paths, output_paths))
+
+    # Remove any remaining tmp files
+    for sp in subjects_paths:
+        tmp_filepath = f"{output_path}/{sp.stem}_tmp_roi.nii.gz"
+        if os.path.exists(tmp_filepath):
+            os.remove(tmp_filepath)
+
+    click.secho("[@ compute-stats-multi] completed!\n", fg="green")
+
+
 if __name__ == "__main__":
     cli()
