@@ -15,10 +15,10 @@ from dtip.utils import show_exec_time
 
 
 __all__ = [
-        'dtitk_register_multi',
-        'template_to_subject_space',
-        'template_to_subject_space_multi'
-        ]
+    'dtitk_register_multi',
+    'template_to_subject_space',
+    'template_to_subject_space_multi'
+]
 
 
 @show_exec_time
@@ -53,7 +53,7 @@ def dtitk_register_multi(
     if bootstrapped_template_path is None:
         # * Step 1: Convert FSL format to DTI-TK format and move files
         # * to `output_path`.
-        exit_code = 0  # fsl_to_dtitk_multi(input_path, output_path)
+        exit_code = fsl_to_dtitk_multi(input_path, output_path)
         if exit_code != 0:  # Stop here if any error
             _msg = "Error in `dtitk_register_multi` execution :(. Stopped."
             logging.error(_msg)
@@ -182,19 +182,21 @@ def dtitk_register_multi(
             logging.info("Subject alignment complete!")
 
     # Move extra generated files to output_path folder
-
     logging.info(f"Moving generated files to `{output_path}`...")
-    # mean_initial.nii.gz file
-    shutil.move('mean_initial.nii.gz', output_path/'mean_initial.nii.gz')
-    shutil.move('mask.nii.gz', output_path/'mask.nii.gz')
-    shutil.move('template_tr.nii.gz', output_path/'template_tr.nii.gz')
-    shutil.move('bootstrapped_template.nii.gz', 
-                output_path/'bootstrapped_template.nii.gz')
+    if Path.exists('mean_initial.nii.gz'):
+        shutil.move('mean_initial.nii.gz', output_path/'mean_initial.nii.gz')
+    if Path.exists('mask.nii.gz'):
+        shutil.move('mask.nii.gz', output_path/'mask.nii.gz')
+    if Path.exists('template_tr.nii.gz'):
+        shutil.move('template_tr.nii.gz', output_path/'template_tr.nii.gz')
+    if Path.exists('bootstrapped_template.nii.gz'):
+        shutil.move('bootstrapped_template.nii.gz',
+                    output_path/'bootstrapped_template.nii.gz')
     logging.info("Registration complete!")
     return 0
 
 
-def template_to_subject_space(subject_dir_path: Union[str, Path], 
+def template_to_subject_space(subject_dir_path: Union[str, Path],
                               template_path: Union[str, Path],
                               transform_type: str) -> int:
     """Transform the template to the subject space.
@@ -220,34 +222,99 @@ def template_to_subject_space(subject_dir_path: Union[str, Path],
     subject_dir_path = Path(subject_dir_path)
     if not subject_dir_path.is_dir():
         raise ValueError("`subject_dir_path` must be a folder.")
-    if transform_type == 'affine':  # perform affine transformation only
-        subject_path = subject_dir_path/'dti_dtitk.nii.gz'
-        aff_path = subject_dir_path/'dti_dtitk.aff'
-        inv_aff_path = subject_dir_path/'dti_dtitk_inv.aff'
-        savepath = subject_dir_path/Path(template_path).stem.replace('.nii', '')
-        savepath = f"{savepath}_dti_space.nii.gz"
+    subject_path = subject_dir_path/'dti_dtitk.nii.gz'
+    aff_path = subject_dir_path/'dti_dtitk.aff'
+    inv_aff_path = subject_dir_path/'dti_dtitk_inv.aff'
+    if transform_type == 'affine':  # perform affine transformation
+        savepath = subject_dir_path / \
+            Path(template_path).stem.replace('.nii', '')
+        savepath = f"{savepath}_affine_dti_space.nii.gz"
         # Compute the inverse of affine matrix
         ret_code = subprocess.run([
             'affine3Dtool', '-in', aff_path, '-invert', '-out', inv_aff_path
-            ]).returncode
+        ]).returncode
         if ret_code != 0:
-            raise RuntimeError("Something wrong with affine3Dtool subprocess.")
+            raise RuntimeError("Something wrong with `affine3Dtool` subprocess.")
 
         ret_code = subprocess.run([
             'affineScalarVolume', '-in', template_path, '-trans', inv_aff_path,
             '-target', subject_path, '-interp', '1', '-out', savepath
-            ]).returncode
+        ]).returncode
 
         if ret_code != 0:
-            raise RuntimeError("Something wrong with affineScalarVolume subprocess.")
+            raise RuntimeError(
+                "Something wrong with `affineScalarVolume` subprocess.")
+    if transform_type == 'diffeo':  # perform diffeomorphic transformation
+        savepath = subject_dir_path / \
+            Path(template_path).stem.replace('.nii', '')
+        savepath = f"{savepath}_diffeo_dti_space.nii.gz"
+        #* Combined displacement field from the native space to the template space 
+        diffeo_df_path = subject_dir_path/'dti_dtitk_aff_diffeo.df.nii.gz'
+        combined_df_path = subject_dir_path/'dti_dtitk_combined.df.nii.gz'
+        ret_code = subprocess.run([
+            'dfRightComposeAffine', 
+            '-aff', aff_path, 
+            '-df', diffeo_df_path, 
+            '-out', combined_df_path
+        ]).returncode
+        if ret_code != 0:
+            raise RuntimeError("Something wrong with `dfRightComposeAffine` subprocess.")
+        #* Mapping the subject data to the template space 
+        subject_combined_path = subject_dir_path/'dti_dtitk_combined.nii.gz'
+        ret_code = subprocess.run([
+            'deformationSymTensor3DVolume',
+            '-in', subject_path,
+            '-trans', combined_df_path,
+            '-target', template_path, 
+            '-out', subject_combined_path
+        ]).returncode
+        if ret_code != 0:
+            raise RuntimeError("Something wrong with `dfRightComposeAffine` subprocess.")
+        #* Combined displacement field from the template space to the native space
+        ## 1. compute the inverse of the affine transformation with the 
+        ## command affine3Dtool
+        ret_code = subprocess.run([
+            'affine3Dtool', '-in', aff_path, '-invert', '-out', inv_aff_path
+        ]).returncode
+        if ret_code != 0:
+            raise RuntimeError("Something wrong with `affine3Dtool` subprocess.")
+        ## 2. compute the inverse of the deformable transformation with the 
+        ## command dfToInverse
+        diffeo_inv_df_path = subject_dir_path/'dti_dtitk_aff_diffeo.df_inv.nii.gz'
+        ret_code = subprocess.run([
+            'dfToInverse', '-in', diffeo_df_path, '-out', diffeo_inv_df_path
+        ]).returncode
+        if ret_code != 0:
+            raise RuntimeError("Something wrong with `dfToInverse` subprocess.")
+        ## 3. combine the two inverted transformations with the command 
+        ## dfLeftComposeAffine (not dfRightComposeAffine)
+        combined_inv_df_path = subject_dir_path/'dti_dtitk_combined.df_inv.nii.gz'
+        ret_code = subprocess.run([
+            'dfLeftComposeAffine', 
+            '-df', diffeo_inv_df_path,
+            '-aff', inv_aff_path,
+            '-out', combined_inv_df_path
+        ]).returncode
+        if ret_code != 0:
+            raise RuntimeError("Something wrong with `dfLeftComposeAffine` subprocess.")
+        #* Mapping the atlas space data to the subject space 
+        ret_code = subprocess.run([
+            'deformationScalarVolume',
+            '-in', template_path, 
+            '-trans', combined_inv_df_path,
+            '-target', subject_path,
+            '-interp', '1',
+            '-out', savepath
+        ]).returncode
+        if ret_code != 0:
+            raise RuntimeError("Something wrong with `deformationScalarVolume` subprocess.")
     else:
         raise NotImplementedError("Diffeomorphic is not yet implemented.")
-
     return 0
 
 
 @show_exec_time
-def template_to_subject_space_multi(subjects_dir_path: Union[str, Path], 
+def template_to_subject_space_multi(subjects_dir_path: Union[str, Path],
                                     template_path: Union[str, Path],
                                     transform_type: str) -> int:
     """Transform the template to the subject space.
@@ -283,11 +350,13 @@ def template_to_subject_space_multi(subjects_dir_path: Union[str, Path],
                                              template_path=template_path,
                                              transform_type=transform_type)
         if ret_code == 0:
-            logging.info(f"[{i}/{total_subjects}] Transformed `{template_path.name}` to `{subject_path.name}`")
+            logging.info(
+                f"[{i}/{total_subjects}] Transformed `{template_path.name}` to `{subject_path.name}`")
         else:
-            logging.warning(f"Error transforming {subject_path.stem}. Skipped.")
+            logging.warning(
+                f"Error transforming {subject_path.stem}. Skipped.")
             error_list.append(subject_path.stem)
-        
+
     if error_list:
         print("=" * 10, f"{len(error_list)} Subjects with Errors", "=" * 10)
         for es in error_list:

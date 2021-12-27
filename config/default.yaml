@@ -15,8 +15,9 @@ n_diffeo_iters: 6 # 6 is maximum iterations you can set
 # Number of gradient directions per DTI volume
 n_gradients: 16
 
-# 
-n_rois: 122
+# Number of ROIs in parcellation template nifti file.
+# JHU_pediatric24_SS_159parcellation.roihdr has 159.
+n_rois: 159
 
 #* FULL PATHS TO FOLDERS AND FILES
 paths:
@@ -29,7 +30,7 @@ paths:
   notebooks_dir: !joinpath [*root_dir, notebooks] # notebooks folder
   
 log: # logging default settings
-  name: dtipLogger # Name of the logger. Name must be same as logging.conf 
+  name: dtipLogger # Name of the logger. Name must be same as logs.conf 
   filename: dtip_logs
 
 project_name: dtip
