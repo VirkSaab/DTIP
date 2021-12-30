@@ -1,3 +1,4 @@
+import os
 import click
 import time
 import logging
@@ -534,6 +535,12 @@ def template_to_subject_multi(input_path, template_path, transform_type):
 def compute_stats(input_path, subject_space_template_name, output_path):
     """Compute ROI stats for a subject."""
 
+    if os.getenv('DTITK_ROOT') is None:
+        # Add DTI-TK PATH as environment variable
+        dtitk_maindir = f"{ROOT_DIR}/dtitk"
+        os.environ["DTITK_ROOT"] = dtitk_maindir
+        os.environ["PATH"] += f":{dtitk_maindir}/bin:{dtitk_maindir}/utilities:{dtitk_maindir}/scripts"
+
     if subject_space_template_name is None:
         raise ValueError("Name of the subject space template is required.")
 
@@ -579,6 +586,12 @@ def compute_stats_multi(input_path,
                         subject_space_template_name,
                         output_path):
     """Compute ROI stats for multiple subjects."""
+    if os.getenv('DTITK_ROOT') is None:
+        # Add DTI-TK PATH as environment variable
+        dtitk_maindir = f"{ROOT_DIR}/dtitk"
+        os.environ["DTITK_ROOT"] = dtitk_maindir
+        os.environ["PATH"] += f":{dtitk_maindir}/bin:{dtitk_maindir}/utilities:{dtitk_maindir}/scripts"
+
     if subject_name is None:
         raise ValueError("subject name for DTI data nifti file is required.")
     if subject_space_template_name is None:

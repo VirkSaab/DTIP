@@ -1,3 +1,5 @@
+ruamel.yaml
+easydict
 click
 pandas
 numpy
