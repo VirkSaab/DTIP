@@ -6,14 +6,66 @@ import pandas as pd
 import nibabel as nib
 
 from pathlib import Path
-from typing import Union
+from typing import Union, List
 from fastprogress import progress_bar
-from fsl.wrappers.fslmaths import fslmaths
 
 
-__all__ = ['ComputeSubjectROIStats', 'compute_mp_fn']
+__all__ = ['compute_mp_fn', 'ComputeSubjectROIStats']
 
 
+# ============================== FUNCTIONS ==============================
+def fill_missing_roi_values(df: pd.DataFrame, n_rois: int) -> pd.DataFrame:
+    """Fill missing values with mean of that column.
+    This function will check `roi_num` column from 1 to `n_rois` values,
+    if there is any missing number then it will be filled using the mean
+    value of the column.
+
+    Args:
+        df: pandas dataframe containing data
+        n_rois: number of ROI's in the dataframe.
+    """
+    if df.roi_num.unique().shape[0] != n_rois:
+        missing_rois = list(set(range(1, n_rois + 1)
+                                ).difference(set(df.roi_num.unique())))
+        total_missing = len(missing_rois)
+        if total_missing != 0:
+            # Too many missing values
+            if total_missing > (df.shape[0] * .20):  # no more than 20%
+                raise ValueError("Too much missing values.")
+            for val in missing_rois:
+                row = {'roi_num': val}
+                columns = df.columns.to_list()
+                columns.remove('roi_num')
+                for colname in columns:
+                    row[colname] = df[colname].mean()
+                df = df.append(row, ignore_index=True)
+                df = df.sort_values(by='roi_num').reset_index(drop=True)
+            print(f"Interpolated {total_missing} missing value(s).")
+
+    return df
+
+
+def compute_mp_fn(kwargs):
+    """Compute wrapper function for compute-stats-multi multiprocessing command
+    """
+
+    input_path = kwargs['input_path']
+    template_path = kwargs['template_path']
+    output_path = kwargs['output_path']
+    logging.info(f"Computing ROI stats for {input_path}...")
+    sstats = ComputeSubjectROIStats(input_path=input_path,
+                                    subject_space_pcl_path=template_path,
+                                    output_path=output_path,
+                                    show_pb=False)
+    ret_code = sstats.run()
+    if ret_code == 0:
+        logging.info("done!")
+    else:
+        logging.error(f"Error in computing stats for {input_path}")
+    return 0
+
+
+# ============================== CLASSES ==============================
 class ComputeSubjectROIStats:
     def __init__(self,
                  input_path: Union[str, Path],
@@ -45,7 +97,8 @@ class ComputeSubjectROIStats:
 
         self.subject_name = self.input_path.parent.stem
         # Set save path for csv file
-        self.filepath = self.output_path/f"{self.subject_name}__{stats_filename}"
+        self.filepath = self.output_path / \
+            f"{self.subject_name}__{stats_filename}"
         # Set a temporary file path for computation operations
         self.tmp_path = self.output_path/f"{self.subject_name}_tmp_roi.nii.gz"
 
@@ -74,6 +127,8 @@ class ComputeSubjectROIStats:
         """Split each ROI, binary threshold, and save as
             nifti files for further computation
         """
+        from fsl.wrappers.fslmaths import fslmaths
+
         input_path = str(self.input_path)
         subject_stats = {
             'roi_num': [],
@@ -137,21 +192,105 @@ class ComputeSubjectROIStats:
         return roi_stats
 
 
-def compute_mp_fn(kwargs):
-    """Compute wrapper function for compute-stats-multi multiprocessing command
-    """
+class DataLoader:
+    from scipy import stats
 
-    input_path = kwargs['input_path']
-    template_path = kwargs['template_path']
-    output_path = kwargs['output_path']
-    logging.info(f"Computing ROI stats for {input_path}...")
-    sstats = ComputeSubjectROIStats(input_path=input_path,
-                                    subject_space_pcl_path=template_path,
-                                    output_path=output_path,
-                                    show_pb=False)
-    ret_code = sstats.run()
-    if ret_code == 0:
-        logging.info("done!")
-    else:
-        logging.error(f"Error in computing stats for {input_path}")
-    return 0
+    def __init__(self,
+                 pre: List[Union[str, Path]],
+                 post: List[Union[str, Path]],
+                 n_rois: int,
+                 fill_missing_roi: bool = True) -> None:
+        """Data loader class for analysis using different tests
+
+        Args:
+            pre: list of paths of pre or group 1 csv data files.
+            post: list of paths of post or group 2 csv data files.
+            n_rois: Total number of ROIs present in the data.
+                Make sure the ROI's numbering starts from 1 and consecutive.
+            fill_missing_roi: if True, fill missing values with mean of the 
+                column.
+        """
+        # load data and set `roi_num` as index
+        self.pre_dfs = self._load_data_safely(pre, fill_missing_roi, n_rois)
+        self.post_dfs = self._load_data_safely(post, fill_missing_roi, n_rois)
+
+        # set `roi_num` as index
+        self.pre_dfs = {
+            name: df.set_index('roi_num')
+            for name, df in self.pre_dfs.items()
+        }
+        self.post_dfs = {
+            name: df.set_index('roi_num')
+            for name, df in self.post_dfs.items()
+        }
+
+        # Check if all dataframes are of same size
+        size = [df.shape[0] == n_rois for name, df in self.pre_dfs.items()]
+        _errmsg = f"All files must be of same size. Found {size}"
+        assert all(size) == True, _errmsg
+
+        self.n_rois = n_rois
+
+    def _load_data_safely(self,
+                          paths_list:  List[Union[str, Path]],
+                          fill_missing_roi: bool,
+                          n_rois: int):
+        """Check and fix data before testing"""
+        dfs = {}
+        for p in paths_list:
+            df = pd.read_csv(p)
+            if fill_missing_roi:
+                df = fill_missing_roi_values(df, n_rois)
+            if df.shape[0] != n_rois:
+                _errmsg = f"# ROIs in {p} != n_rois ({df.shape[0]} != {n_rois})."
+                _errmsg += " set `fill_missing_roi = True` to fill missing values"
+                raise ValueError(_errmsg)
+            dfs[Path(p).stem] = df
+        return dfs
+
+    def paired_t_test(self,
+                      var_name: str,
+                      roi_num: Union[str, int],
+                      alpha: float = 0.05):
+        """Perform T-test on the given variable
+
+        Args:
+            var_name: column name of the variable to perform T-test.
+            roi_num: ROI number i.e. specific brain region. 
+                [default is -1, means perform t-test on all regions one-by-one]
+            alpha: Significance value
+        """
+        if isinstance(roi_num, str) and (roi_num == 'all'):
+            pass  # Nothing to do here
+        else:
+            try:
+                roi_num = int(roi_num)
+                if roi_num == 0:
+                    raise ValueError("ROI number must be > 0.")
+            except ValueError:
+                _errmsg = "`roi_num` must be an integer or `all`. "
+                _errmsg += f"Found roi_num = {roi_num}."
+                raise ValueError(_errmsg)
+
+        if roi_num == 'all':
+            ret_dict = {}
+            for i in range(1, self.n_rois + 1):
+                t_stat, p_value = self._one_roi_paired_t_test(
+                    var_name, roi_num=i
+                )
+                ret_dict[i] = {'t_stat': t_stat, 'p_value': p_value}
+            return ret_dict
+        else:
+            t_stat, p_value = self._one_roi_paired_t_test(
+                var_name, roi_num=roi_num)
+            return {'t_stat': t_stat, 'p_value': p_value}
+
+    def _one_roi_paired_t_test(self, var_name, roi_num):
+        pre_values = [
+            df.loc[roi_num, var_name] for df in self.pre_dfs.values()
+        ]
+        post_values = [
+            df.loc[roi_num, var_name] for df in self.post_dfs.values()
+        ]
+        t_stat, p_value = self.stats.ttest_rel(pre_values, post_values)
+        return t_stat, p_value

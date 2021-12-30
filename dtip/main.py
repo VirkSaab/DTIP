@@ -509,7 +509,8 @@ def template_to_subject_multi(input_path, template_path, transform_type):
     if ret_code == 0:
         click.secho("[@ template-to-subject-multi] completed!\n", fg="green")
     else:
-        click.secho(f"[@ template-to-subject-multi] completed (with {ret_code} error subjects)!\n", fg="yellow")
+        click.secho(
+            f"[@ template-to-subject-multi] completed (with {ret_code} error subjects)!\n", fg="yellow")
 
 
 # ----------------------------------------> ANALYSIS :
@@ -545,7 +546,7 @@ def compute_stats(input_path, subject_space_template_name, output_path):
         raise ValueError("Name of the subject space template is required.")
 
     from dtip.analysis import ComputeSubjectROIStats
-    
+
     template_path = Path(input_path).parent/subject_space_template_name
     sstats = ComputeSubjectROIStats(input_path=input_path,
                                     subject_space_pcl_path=template_path,
@@ -627,8 +628,91 @@ def compute_stats_multi(input_path,
     if sum(ret_list) == 0:
         click.secho("[@ compute-stats] completed!\n", fg="green")
     else:
-        click.secho(f"[@ compute-stats] completed (with {len(error_list)} error subjects)!\n", fg="yellow")
+        click.secho(
+            f"[@ compute-stats] completed (with {len(error_list)} error subjects)!\n", fg="yellow")
 
+
+@cli.command()
+@click.argument("pre_subjects_filepath", type=click.Path(exists=True))
+@click.argument("post_subjects_filepath", type=click.Path(exists=True))
+@click.option(
+    "-t",
+    "test_type",
+    type=click.Choice(["pairedttest", "onesamttest"], case_sensitive=False),
+    show_default=True,
+    default="pairedttest",
+    help="Select the type of the test from the given choices.",
+)
+@click.option(
+    "-roi",
+    default='all',
+    show_default=True,
+    help=f"ROI number from 1 to {CNF.n_rois} or `all`.",
+)
+@click.option(
+    "-alpha",
+    default=0.05,
+    show_default=True,
+    help=f"Significance value.",
+)
+def test(pre_subjects_filepath: str,
+         post_subjects_filepath: str,
+         test_type: str, 
+         roi: Union[str, int],
+         alpha):
+    from dtip.analysis import DataLoader
+
+    with open(pre_subjects_filepath) as pref:
+        pre_list = pref.read().split('\n')
+    with open(post_subjects_filepath) as postf:
+        post_list = postf.read().split('\n')
+
+    print("Hypothesis:\n\tH0: Pre and Post subjects are same.")
+    print("\tH1: Pre and Post subjects are not same.")
+
+    data = DataLoader(pre_list, post_list, n_rois=CNF.n_rois)
+    if test_type == 'pairedttest':
+        rejected, not_rejected = {}, {}
+        for colname in ['fa_mean', 'rd_mean', 'ad_mean']:
+            rejected[colname], not_rejected[colname] = [], []
+            print('='*10, colname, '='*10)
+            ret_dict = data.paired_t_test(colname, roi_num=roi, alpha=alpha)
+            if len(ret_dict) == 1:
+                t_stat = ret_dict['t_stat']
+                p_value = ret_dict['p_value']
+                print(f"t_stat = {round(t_stat, 5)}\np_value = {round(p_value, 5)}")
+                one_tailed_p_value = round(p_value / 2, 5)
+                print(f"one tailed p_value = {one_tailed_p_value}")
+                print()
+                if one_tailed_p_value <= alpha:
+                    print(f"p_value ({one_tailed_p_value}) < alpha ({alpha}).")
+                    print("=> null hypothesis H0 rejected.")
+                else:
+                    print(f"p_value ({one_tailed_p_value}) > alpha ({alpha}).")
+                    print("=> null hypothesis H0 NOT rejected.")
+            else:
+                for i in range(1, CNF.n_rois + 1):
+                    one_tailed_p_value = round(ret_dict[i]['p_value'] / 2, 5)
+                    if one_tailed_p_value <= alpha:
+                        # print(f"p_value ({one_tailed_p_value}) < alpha ({alpha}).")
+                        # print("=> null hypothesis H0 rejected.")
+                        rejected[colname].append(i)
+                    else:
+                        # print(f"p_value ({one_tailed_p_value}) > alpha ({alpha}).")
+                        # print("=> null hypothesis H0 NOT rejected.")
+                        not_rejected[colname].append(i)
+                print(f"H0 rejected = {len(rejected[colname])} times")
+                print(f"H0 not rejected = {len(not_rejected[colname])} times")
+        # Common rejected ROIs in all variables
+        print('Common rejected ROIs in all variables:')
+        for i in range(1, CNF.n_rois + 1):
+            is_common = all([
+                True if i in _rois else False
+                for col, _rois in rejected.items()
+            ])
+            if is_common:
+                print(f"ROI number {i} is rejected in all variables.")
+                
 
 if __name__ == "__main__":
     cli()

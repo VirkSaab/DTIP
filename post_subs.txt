@@ -1,0 +1,3 @@
+/media/virk/MyEHDD/ITS22/5_analysis/1_2__dti_stats.csv
+/media/virk/MyEHDD/ITS22/5_analysis/7_2__dti_stats.csv
+/media/virk/MyEHDD/ITS22/5_analysis/10_2__dti_stats.csv
