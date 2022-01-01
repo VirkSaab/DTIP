@@ -103,7 +103,10 @@ def method_dcm2nii(
             return 0
 
         except FileNotFoundError:
-            logging.error("[@ `dcm2nii`] Make sure `dcm2nii` is installed.")
+            _errmsg = "[@ `dcm2nii`] Make sure `dcm2nii` is installed."
+            _errmsg += "Use `sudo apt install mricron`."
+            _errmsg += "dcm2nii is subpackage of mricron."
+            logging.error(_errmsg)
             return 1
 
 
@@ -156,6 +159,13 @@ def fsl_to_dtitk_multi(
     Returns:
         return exit code 0 on successful execution
     """
+    import os
+    from dtip.utils import ROOT_DIR
+    if os.getenv('DTITK_ROOT') is None:
+        # Add DTI-TK PATH as environment variable
+        dtitk_maindir = f"{ROOT_DIR}/dtitk"
+        os.environ["DTITK_ROOT"] = dtitk_maindir
+        os.environ["PATH"] += f":{dtitk_maindir}/bin:{dtitk_maindir}/utilities:{dtitk_maindir}/scripts"
 
     input_path, output_path = Path(input_path), Path(output_path)
 

@@ -115,7 +115,7 @@ def run_eddy(
 
     with SpinCursor("Running eddy...", end=f"Eddy corrected saved @ `{output_path}`"):
         command = [
-            "eddy",
+            "eddy_openmp",
             f"--imain={input_path}",
             f"--mask={brain_mask_path}",
             f"--index={index_path}",

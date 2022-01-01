@@ -14,6 +14,15 @@ from dtip.convert import fsl_to_dtitk_multi
 from dtip.utils import show_exec_time
 
 
+# * Add dtitk tool to PATH
+from dtip.utils import ROOT_DIR
+if os.getenv('DTITK_ROOT') is None:
+    # Add DTI-TK PATH as environment variable
+    dtitk_maindir = f"{ROOT_DIR}/dtitk"
+    os.environ["DTITK_ROOT"] = dtitk_maindir
+    os.environ["PATH"] += f":{dtitk_maindir}/bin:{dtitk_maindir}/utilities:{dtitk_maindir}/scripts"
+    
+
 __all__ = [
     'dtitk_register_multi',
     'template_to_subject_space',
@@ -44,11 +53,6 @@ def dtitk_register_multi(
     input_path, output_path = Path(input_path), Path(output_path)
     if bootstrapped_template_path:
         bootstrapped_template_path = Path(bootstrapped_template_path)
-
-    # * Add dtitk tool to PATH
-    # dtitk_maindir = f"{Path(__file__).parent}/dtitk"
-    # os.environ["DTITK_ROOT"] = dtitk_maindir
-    # os.environ["PATH"] += f":{dtitk_maindir}/bin:{dtitk_maindir}/utilities:{dtitk_maindir}/scripts"
 
     if bootstrapped_template_path is None:
         # * Step 1: Convert FSL format to DTI-TK format and move files
@@ -183,13 +187,13 @@ def dtitk_register_multi(
 
     # Move extra generated files to output_path folder
     logging.info(f"Moving generated files to `{output_path}`...")
-    if Path.exists('mean_initial.nii.gz'):
+    if Path('mean_initial.nii.gz').exists():
         shutil.move('mean_initial.nii.gz', output_path/'mean_initial.nii.gz')
-    if Path.exists('mask.nii.gz'):
+    if Path('mask.nii.gz').exists():
         shutil.move('mask.nii.gz', output_path/'mask.nii.gz')
-    if Path.exists('template_tr.nii.gz'):
+    if Path('template_tr.nii.gz').exists():
         shutil.move('template_tr.nii.gz', output_path/'template_tr.nii.gz')
-    if Path.exists('bootstrapped_template.nii.gz'):
+    if Path('bootstrapped_template.nii.gz').exists():
         shutil.move('bootstrapped_template.nii.gz',
                     output_path/'bootstrapped_template.nii.gz')
     logging.info("Registration complete!")
@@ -244,7 +248,7 @@ def template_to_subject_space(subject_dir_path: Union[str, Path],
         if ret_code != 0:
             raise RuntimeError(
                 "Something wrong with `affineScalarVolume` subprocess.")
-    if transform_type == 'diffeo':  # perform diffeomorphic transformation
+    elif transform_type == 'diffeo':  # perform diffeomorphic transformation
         savepath = subject_dir_path / \
             Path(template_path).stem.replace('.nii', '')
         savepath = f"{savepath}_diffeo_dti_space.nii.gz"
@@ -309,7 +313,7 @@ def template_to_subject_space(subject_dir_path: Union[str, Path],
         if ret_code != 0:
             raise RuntimeError("Something wrong with `deformationScalarVolume` subprocess.")
     else:
-        raise NotImplementedError("Diffeomorphic is not yet implemented.")
+        raise NotImplementedError("Unknown `transform_type`. Only `affine` and `diffeo` is supported.")
     return 0
 
 

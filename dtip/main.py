@@ -248,9 +248,12 @@ def bootstrap_template(input_path, ref_template_path, output_path):
     import shutil
     import subprocess
 
-    # dtitk_dir = f"{ROOT_DIR}/dtitk"
-    # os.environ["DTITK_ROOT"] = dtitk_dir
-    # os.environ["PATH"] += f":{dtitk_dir}/bin:{dtitk_dir}/utilities:{dtitk_dir}/scripts"
+    if os.getenv('DTITK_ROOT') is None:
+        # Add DTI-TK PATH as environment variable
+        dtitk_maindir = f"{ROOT_DIR}/dtitk"
+        os.environ["DTITK_ROOT"] = dtitk_maindir
+        os.environ["PATH"] += f":{dtitk_maindir}/bin:{dtitk_maindir}/utilities:{dtitk_maindir}/scripts"
+
     subs_filepaths = [
         subject_path / "dti_dtitk.nii.gz"
         for subject_path in Path(input_path).glob("*")
