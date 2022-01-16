@@ -648,9 +648,16 @@ def compute_stats_multi(input_path,
 )
 @click.option(
     "-roi",
-    default='all',
+    default=None,
     show_default=True,
     help=f"ROI number from 1 to {CNF.n_rois} or `all`.",
+)
+@click.option(
+    "-roigrps",
+    default=None,
+    type=click.Path(exists=True),
+    show_default=True,
+    help=f"ROI group(s) containing multiple selected ROI IDs.",
 )
 @click.option(
     "-alpha",
@@ -662,8 +669,33 @@ def test(pre_subjects_filepath: str,
          post_subjects_filepath: str,
          test_type: str, 
          roi: Union[str, int],
+         roigrps: str,
          alpha):
+
     from dtip.analysis import DataLoader
+
+    # at least one ROI is required to proceed
+    if (roi is None) and (roigrps is None):
+        _errmsg = "At least one ROI is required."
+        _errmsg += " Either pass -roi or -roigrps."
+        raise AttributeError(_errmsg)
+    if (roi is not None) and (roigrps is not None):
+        _errmsg = "Cannot handle both -roi and -roigrps at a time."
+        _errmsg += " Either pass -roi or -roigrps."
+        raise AttributeError(_errmsg)
+
+    # If ROI groups filepath is given, load data
+    roi_groups = None
+    if (roigrps is not None):
+        if (roigrps[-4:] != '.txt'):
+            raise AttributeError("Only .txt file is supported.")
+
+        with open(roigrps, 'r') as grps_file:
+            roi_groups = {}
+            for grp_num, line in enumerate(grps_file.read().split('\n')):
+                roi_groups[grp_num] = []
+                for num in line.split(","):
+                    roi_groups[grp_num].append(int(num.strip()))        
 
     with open(pre_subjects_filepath) as pref:
         pre_list = pref.read().split('\n')
@@ -674,48 +706,75 @@ def test(pre_subjects_filepath: str,
     print("\tH1: Pre and Post subjects are not same.")
 
     data = DataLoader(pre_list, post_list, n_rois=CNF.n_rois)
+        
     if test_type == 'pairedttest':
         rejected, not_rejected = {}, {}
         for colname in ['fa_mean', 'rd_mean', 'ad_mean']:
             rejected[colname], not_rejected[colname] = [], []
             print('='*10, colname, '='*10)
-            ret_dict = data.paired_t_test(colname, roi_num=roi, alpha=alpha)
-            if len(ret_dict) == 1:
-                t_stat = ret_dict['t_stat']
-                p_value = ret_dict['p_value']
-                print(f"t_stat = {round(t_stat, 5)}\np_value = {round(p_value, 5)}")
-                one_tailed_p_value = round(p_value / 2, 5)
-                print(f"one tailed p_value = {one_tailed_p_value}")
-                print()
-                if one_tailed_p_value <= alpha:
-                    print(f"p_value ({one_tailed_p_value}) < alpha ({alpha}).")
-                    print("=> null hypothesis H0 rejected.")
-                else:
-                    print(f"p_value ({one_tailed_p_value}) > alpha ({alpha}).")
-                    print("=> null hypothesis H0 NOT rejected.")
-            else:
-                for i in range(1, CNF.n_rois + 1):
-                    one_tailed_p_value = round(ret_dict[i]['p_value'] / 2, 5)
+            ret_dict = data.paired_t_test(
+                colname,
+                roi_num=roi, 
+                roi_groups=roi_groups, 
+                alpha=alpha
+            )
+            if roi is not None:
+                if len(ret_dict) == 1:
+                    ret_dict = ret_dict[int(roi)]
+                    t_stat = ret_dict['t_stat']
+                    p_value = ret_dict['two_sided_p_value']
+                    print(f"t_stat = {round(t_stat, 5)}\np_value = {round(p_value, 5)}")
+                    one_tailed_p_value = round(ret_dict['p_value'], 5)
+                    print(f"one tailed p_value = {one_tailed_p_value}")
+                    print()
                     if one_tailed_p_value <= alpha:
-                        # print(f"p_value ({one_tailed_p_value}) < alpha ({alpha}).")
+                        print(f"p_value ({one_tailed_p_value}) < alpha ({alpha}).")
+                        print("=> null hypothesis H0 rejected.")
+                    else:
+                        print(f"p_value ({one_tailed_p_value}) > alpha ({alpha}).")
+                        print("=> null hypothesis H0 NOT rejected.")
+                else:
+                    for i in range(1, CNF.n_rois + 1):
+                        one_tailed_p_value = round(ret_dict[i]['p_value'], 5)
+                        if one_tailed_p_value <= alpha:
+                            # print(f"p_value ({one_tailed_p_value}) < alpha ({alpha}).")
+                            # print("=> null hypothesis H0 rejected.")
+                            rejected[colname].append(i)
+                        else:
+                            # print(f"p_value ({one_tailed_p_value}) > alpha ({alpha}).")
+                            # print("=> null hypothesis H0 NOT rejected.")
+                            not_rejected[colname].append(i)
+                    print(f"H0 rejected = {len(rejected[colname])} times")
+                    print(f"H0 not rejected = {len(not_rejected[colname])} times")
+            
+            elif roi_groups is not None:
+                for i in roi_groups:
+                    group_p_value = round(ret_dict[i]['p_value'], 5)
+                    if group_p_value <= alpha:
+                        # print(f"p_value ({group_p_value}) < alpha ({alpha}).")
                         # print("=> null hypothesis H0 rejected.")
                         rejected[colname].append(i)
                     else:
-                        # print(f"p_value ({one_tailed_p_value}) > alpha ({alpha}).")
+                        # print(f"p_value ({group_p_value}) > alpha ({alpha}).")
                         # print("=> null hypothesis H0 NOT rejected.")
                         not_rejected[colname].append(i)
+                    print(f"group {i} p-value = {group_p_value}")
                 print(f"H0 rejected = {len(rejected[colname])} times")
                 print(f"H0 not rejected = {len(not_rejected[colname])} times")
+            else:
+                raise NotImplementedError("Only support `roi` and `roigrps`")
+        
         # Common rejected ROIs in all variables
-        print('Common rejected ROIs in all variables:')
+        print('\nCommon rejected ROIs in all variables:')
         for i in range(1, CNF.n_rois + 1):
             is_common = all([
                 True if i in _rois else False
                 for col, _rois in rejected.items()
             ])
             if is_common:
-                print(f"ROI number {i} is rejected in all variables.")
+                print(f"\t* ROI number {i} is rejected in all variables.")
                 
+
 
 if __name__ == "__main__":
     cli()
