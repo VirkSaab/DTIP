@@ -1,3 +1,4 @@
+from email.policy import default
 import os
 import click
 import time
@@ -665,15 +666,20 @@ def compute_stats_multi(input_path,
     show_default=True,
     help=f"Significance value.",
 )
+@click.option('--allvars', is_flag=True, default=False)
+@click.option('--verbose', is_flag=True, default=False)
 def test(pre_subjects_filepath: str,
          post_subjects_filepath: str,
-         test_type: str, 
+         test_type: str,
          roi: Union[str, int],
          roigrps: str,
          alpha: float,
-         full_verbose: bool = False):
+         allvars: bool = False,
+         verbose: bool = False):
 
     from dtip.analysis import DataLoader
+
+    full_verbose = verbose
 
     # at least one ROI is required to proceed
     if (roi is None) and (roigrps is None):
@@ -701,7 +707,7 @@ def test(pre_subjects_filepath: str,
             for grp_num, line in enumerate(grps_file.read().split('\n')):
                 roi_groups[grp_num] = []
                 for num in line.split(","):
-                    roi_groups[grp_num].append(int(num.strip()))        
+                    roi_groups[grp_num].append(int(num.strip()))
 
     with open(pre_subjects_filepath) as pref:
         pre_list = pref.read().split('\n')
@@ -712,7 +718,7 @@ def test(pre_subjects_filepath: str,
     print("\tH1: Pre and Post subjects are not the same.")
 
     data = DataLoader(pre_list, post_list, n_rois=CNF.n_rois)
-    
+
     show_common = False  # Display bool flag for common ROIs
     if test_type == 'pairedttest':
         rejected, not_rejected = {}, {}
@@ -723,7 +729,7 @@ def test(pre_subjects_filepath: str,
             ret_dict = data.paired_t_test(
                 colname,
                 roi_num=roi,
-                roi_groups=roi_groups, 
+                roi_groups=roi_groups,
                 alpha=alpha
             )
             if roi is not None:
@@ -733,22 +739,26 @@ def test(pre_subjects_filepath: str,
                         p_value = stats['two_sided_p_value']
                         one_tailed_p_value = round(stats['p_value'], 5)
                         if len(ret_dict) < 3:
-                            print(f"ROI {roi_num}:")                        
+                            print(f"ROI {roi_num}:")
                             print(f"\tt_stat = {round(t_stat, 5)}")
                             print(f"\tp_value = {round(p_value, 5)}")
-                            print(f"\tone tailed p_value = {one_tailed_p_value}")
+                            print(
+                                f"\tone tailed p_value = {one_tailed_p_value}")
                         if one_tailed_p_value <= alpha:
                             if full_verbose:
-                                print(f"\tp_value ({one_tailed_p_value}) < alpha ({alpha}).")
+                                print(
+                                    f"\tp_value ({one_tailed_p_value}) < alpha ({alpha}).")
                                 print("\t=> null hypothesis H0 rejected.")
                             rejected[colname].append(roi_num)
                         else:
                             if full_verbose:
-                                print(f"\tp_value ({one_tailed_p_value}) > alpha ({alpha}).")
+                                print(
+                                    f"\tp_value ({one_tailed_p_value}) > alpha ({alpha}).")
                                 print("\t=> null hypothesis H0 NOT rejected.")
                             not_rejected[colname].append(roi_num)
                     print(f"H0 rejected = {len(rejected[colname])} times")
-                    print(f"H0 not rejected = {len(not_rejected[colname])} times")
+                    print(
+                        f"H0 not rejected = {len(not_rejected[colname])} times")
 
                     if len(ret_dict) > 1:
                         show_common = True
@@ -757,18 +767,21 @@ def test(pre_subjects_filepath: str,
                         one_tailed_p_value = round(ret_dict[i]['p_value'], 5)
                         if one_tailed_p_value <= alpha:
                             if full_verbose:
-                                print(f"p_value ({one_tailed_p_value}) < alpha ({alpha}).")
+                                print(
+                                    f"p_value ({one_tailed_p_value}) < alpha ({alpha}).")
                                 print("=> null hypothesis H0 rejected.")
                             rejected[colname].append(i)
                         else:
                             if full_verbose:
-                                print(f"p_value ({one_tailed_p_value}) > alpha ({alpha}).")
+                                print(
+                                    f"p_value ({one_tailed_p_value}) > alpha ({alpha}).")
                                 print("=> null hypothesis H0 NOT rejected.")
                             not_rejected[colname].append(i)
                     print(f"H0 rejected = {len(rejected[colname])} times")
-                    print(f"H0 not rejected = {len(not_rejected[colname])} times")
+                    print(
+                        f"H0 not rejected = {len(not_rejected[colname])} times")
                     show_common = True
-            
+
             elif roi_groups is not None:
                 for i in roi_groups:
                     group_p_value = round(ret_dict[i]['p_value'], 5)
@@ -786,7 +799,7 @@ def test(pre_subjects_filepath: str,
                 show_common = True
             else:
                 raise NotImplementedError("Only support `roi` and `roigrps`")
-        
+
         # Common rejected ROIs in all variables
         if show_common:
             print('\nCommon rejected ROIs in all variables:')
@@ -804,9 +817,160 @@ def test(pre_subjects_filepath: str,
                     for col, _rois in not_rejected.items()
                 ])
                 if is_common:
-                    print(f"\t* ROI number {i} is NOT rejected in all variables.")
-                    
+                    print(
+                        f"\t* ROI number {i} is NOT rejected in all variables.")
+
         print()  # Newline at the end
+
+
+@cli.command()
+@click.argument("pre_subjects_filepath", type=click.Path(exists=True))
+@click.argument("post_subjects_filepath", type=click.Path(exists=True))
+@click.option(
+    "-roi",
+    default=None,
+    show_default=True,
+    help=f"ROI number from 1 to {CNF.n_rois} | `all` | path/to/file.txt.",
+)
+@click.option(
+    "-roig",
+    default=None,
+    type=click.Path(exists=True),
+    show_default=True,
+    help=f"ROI group(s) containing multiple selected ROI IDs per line separated by comma.",
+)
+@click.option(
+    "-alpha",
+    default=0.05,
+    show_default=True,
+    help=f"Significance value.",
+)
+@click.option(
+    "-n_rois",
+    type=int,
+    default=CNF.n_rois,
+    show_default=True,
+    help=f"Total number of ROIs.",
+)
+@click.option(
+    "-vars",
+    default='fa_mean,rd_mean,ad_mean',
+    show_default=True,
+    help=f"Variables (separated by comma) to use from the subject .csv files.",
+)
+@click.option('--combine', is_flag=True, default=False)
+@click.option('--verbose', is_flag=True, default=False)
+def paired_ttest(pre_subjects_filepath: str,
+                 post_subjects_filepath: str,
+                 roi: str,
+                 roig: str,
+                 alpha: float,
+                 n_rois: int,
+                 vars: bool = False,
+                 combine: bool = False,
+                 verbose: bool = False):
+
+    from dtip.analysis import PairedTTest
+
+    print("""Hypothesis:
+        H0: Pre and Post subjects are the same.
+        H1: Pre and Post subjects are not the same.
+    """)
+
+    # CHECKS
+    # at least one ROI is required to proceed
+    if (roi is None) and (roig is None):
+        _errmsg = "At least one ROI is required."
+        _errmsg += " Either pass -roi or -roig."
+        raise AttributeError(_errmsg)
+
+    if (roi is not None) and (roig is not None):
+        _errmsg = "Cannot handle both -roi and -roigrps at the same time."
+        _errmsg += " Either pass -roi or -roig."
+        raise AttributeError(_errmsg)
+
+    with open(pre_subjects_filepath) as pref:
+        pre_list = pref.read().split('\n')
+
+    with open(post_subjects_filepath) as postf:
+        post_list = postf.read().split('\n')
+
+    test = PairedTTest(
+        pre=pre_list, post=post_list, n_rois=n_rois, fill_missing_roi=True
+    )
+    var_names = vars.strip(' ').split(',')
+
+    def display_hypothesis(results: dict, verbose: bool = False) -> bool:
+        if results['p_value'] <= alpha:
+            if verbose:
+                print(f"\tp_value ({results['p_value']}) < alpha ({alpha}).")
+                print("\t=> null hypothesis H0 rejected.")
+            return True  # rejected
+        else:
+            if verbose:
+                print(f"\tp_value ({results['p_value']}) > alpha ({alpha}).")
+                print("\t=> null hypothesis H0 NOT rejected.")
+            return False
+
+    # if roi is a path to a file, load data
+    if roi is not None:
+        if roi.endswith('.txt'):
+            with open(roi) as roifile:
+                roi = list(map(int, roifile.read().strip('\n').split(',')))
+
+        results = test.run_roi(
+            var_names=var_names,
+            roi_num=roi,
+            combine=combine
+        )
+        if isinstance(roi, (int, str)):
+            print(f"ROI {roi}:")
+            display_hypothesis(results, verbose=True)
+        elif isinstance(roi, list) and combine:
+            display_hypothesis(results, verbose=True)
+        else:
+            rejected, not_rejected = 0, 0
+            for roi_num, stats in results.items():
+                if verbose:
+                    print(f"ROI {roi_num}:")
+                if display_hypothesis(stats, verbose=verbose):
+                    rejected += 1
+                else:
+                    not_rejected += 1
+            print(f"H0 rejected {rejected}/{len(results)} times.")
+            print(f"H0 NOT rejected {not_rejected}/{len(results)} times.")
+
+    # If ROI groups filepath is given, load data
+    elif (roig is not None):
+        if (roig[-4:] != '.txt'):
+            raise AttributeError("Only .txt file is supported.")
+
+        with open(roig, 'r') as grps_file:
+            roig = {}
+            for grp_num, line in enumerate(
+                grps_file.read().split('\n'), start=1
+            ):
+                grp_name = f'group {grp_num}'
+                roig[grp_name] = []
+                for num in line.split(","):
+                    roig[grp_name].append(int(num.strip()))
+        results = test.run_roi_groups(
+            var_names=var_names,
+            roi_groups=roig,
+        )
+        rejected, not_rejected = 0, 0
+        for roi_num, stats in results.items():
+            print(f'{roi_num.capitalize()}:')
+            if display_hypothesis(stats, verbose=True):
+                rejected += 1
+            else:
+                not_rejected += 1
+        print(f"H0 rejected {rejected}/{len(results)} times.")
+        print(f"H0 NOT rejected {not_rejected}/{len(results)} times.")
+
+    else:
+        print("Something went wrong :(")
+
 
 if __name__ == "__main__":
     cli()

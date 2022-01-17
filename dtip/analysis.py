@@ -10,7 +10,7 @@ from typing import Tuple, Union, List, Dict
 from fastprogress import progress_bar
 
 
-__all__ = ['compute_mp_fn', 'ComputeSubjectROIStats']
+__all__ = ['compute_mp_fn', 'ComputeSubjectROIStats', 'PairedTTest']
 
 
 # ============================== FUNCTIONS ==============================
@@ -86,7 +86,7 @@ class ComputeSubjectROIStats:
             output_path: where the output ROI files will be saved.
             stats_filename: name of the csv file containing computed stats.
                 This file will be saved in `output_path`.
-            show_pb: Enable/disable progress bar visualization. 
+            show_pb: Enable/disable progress bar visualization.
                 Useful to disable in multiprocessing.
         """
         self.input_path = Path(input_path)
@@ -207,7 +207,7 @@ class DataLoader:
             post: list of paths of post or group 2 csv data files.
             n_rois: Total number of ROIs present in the data.
                 Make sure the ROI's numbering starts from 1 and consecutive.
-            fill_missing_roi: if True, fill missing values with mean of the 
+            fill_missing_roi: if True, fill missing values with mean of the
                 column.
         """
         # load data and set `roi_num` as index
@@ -257,7 +257,7 @@ class DataLoader:
 
         Args:
             var_name: column name of the variable to perform T-test.
-            roi_num: ROI number i.e. specific brain region. 
+            roi_num: ROI number i.e. specific brain region.
                 [default is -1, means perform t-test on all regions one-by-one]
             roi_groups: Apply paried T-test on the groups of ROIs.
                 There will be one p-value per group.
@@ -274,7 +274,7 @@ class DataLoader:
                         var_name, roi_num=i
                     )
                     ret_dict[i] = {
-                        't_stat': t_stat, 
+                        't_stat': t_stat,
                         'two_sided_p_value': p_value,
                         'p_value': p_value / 2,
                     }
@@ -286,7 +286,7 @@ class DataLoader:
                         var_name, roi_num=i
                     )
                     ret_dict[i] = {
-                        't_stat': t_stat, 
+                        't_stat': t_stat,
                         'two_sided_p_value': p_value,
                         'p_value': p_value / 2,
                     }
@@ -303,11 +303,11 @@ class DataLoader:
                 t_stat, p_value = self._one_roi_paired_t_test(
                     var_name, roi_num=roi_num)
                 return {roi_num: {
-                        't_stat': t_stat, 
+                        't_stat': t_stat,
                         'two_sided_p_value': p_value,
                         'p_value': p_value / 2,
-                }}
-        
+                        }}
+
         elif roi_groups is not None:
             ret_dict = {}
             for group_num, group in roi_groups.items():
@@ -318,7 +318,7 @@ class DataLoader:
                 group_p_value = group_two_sided_p_value / 2
                 p_value = group_p_value / len(group)
                 ret_dict[group_num] = {
-                    'group_t_stat': group_t_stat, 
+                    'group_t_stat': group_t_stat,
                     'group_two_sided_p_value': group_two_sided_p_value,
                     'group_p_value': group_p_value,
                     'p_value': p_value
@@ -326,7 +326,7 @@ class DataLoader:
             return ret_dict
 
     def _group_roi_paired_t_test(self, var_name: str, roi_group: list
-    ) -> Tuple[float, float]:
+                                 ) -> Tuple[float, float]:
         """Perform T-test on group of ROIs
         Args:
             var_name: Name of the variable (column of dataframe) to use.
@@ -340,17 +340,17 @@ class DataLoader:
             for df in self.pre_dfs.values() for roi_num in roi_group
         ]
         post_values = [
-            df.loc[roi_num, var_name] 
+            df.loc[roi_num, var_name]
             for df in self.post_dfs.values() for roi_num in roi_group
         ]
         t_stat, two_sided_p_value = self.stats.ttest_rel(
-            a=pre_values, 
+            a=pre_values,
             b=post_values
         )
         return t_stat, two_sided_p_value
 
     def _one_roi_paired_t_test(self, var_name, roi_num
-    ) -> Tuple[float, float]:
+                               ) -> Tuple[float, float]:
         """Perform T-test on single ROI.
         Args:
             var_name: Name of the variable (column of dataframe) to use.
@@ -366,7 +366,204 @@ class DataLoader:
             df.loc[roi_num, var_name] for df in self.post_dfs.values()
         ]
         t_stat, two_sided_p_value = self.stats.ttest_rel(
-            a=pre_values, 
+            a=pre_values,
             b=post_values
         )
         return t_stat, two_sided_p_value
+
+
+class PairedTTest:
+    from scipy import stats
+
+    def __init__(self,
+                 pre: List[Union[str, Path]],
+                 post: List[Union[str, Path]],
+                 n_rois: int,
+                 fill_missing_roi: bool = True) -> None:
+        """Perform Paired T-test
+        Args:
+            pre: list of paths of pre or group 1 csv data files.
+            post: list of paths of post or group 2 csv data files.
+            n_rois: Total number of ROIs present in the data.
+                Make sure the ROI's numbering starts from 1 and consecutive.
+            fill_missing_roi: if True, fill missing values with mean of the
+                column.
+        """
+        # load data and set `roi_num` as index
+        self.pre_dfs = self._load_data_safely(pre, fill_missing_roi, n_rois)
+        self.post_dfs = self._load_data_safely(post, fill_missing_roi, n_rois)
+
+        # set `roi_num` as index
+        self.pre_dfs = {
+            name: df.set_index('roi_num')
+            for name, df in self.pre_dfs.items()
+        }
+        self.post_dfs = {
+            name: df.set_index('roi_num')
+            for name, df in self.post_dfs.items()
+        }
+
+        # Check if all dataframes are of same size
+        size = [df.shape[0] == n_rois for name, df in self.pre_dfs.items()]
+        _errmsg = f"All files must be of same size. Found {size}"
+        assert all(size) == True, _errmsg
+
+        # stack all subjects in an array
+
+        self.n_rois = n_rois
+
+    def run_roi(self,
+                var_names: list,
+                roi_num: Union[None, str, int, list],
+                combine: bool = False
+                ) -> dict:
+        """Perform paired T-test on the given variable(s) collectively
+
+        Args:
+            var_names: list of column name(s) of the variable to
+                perform T-test.
+            roi_num: ROI number i.e. specific brain region.
+                Pass an integer, 'all', or list of rois.
+                Where `all` means perform t-test on all regions one-by-one.
+            combine: If True, perform t-test on all variables and roi 
+                combined. If False, perform t-test all variables and for 
+                each roi separately
+        Returns:
+            dict containing t-statistic and p-value
+        """
+        # Pre and post data shapes must be (n_subjects, n_rois, n_variables)
+        if isinstance(roi_num, str):
+            if roi_num == 'all':
+                pre_data, post_data = self._get_selected_roi_num_data(
+                    roi_num,
+                    var_names
+                )
+            else:
+                try:
+                    roi_num = int(roi_num)
+                    if roi_num == 0:
+                        raise ValueError("ROI number must be > 0.")
+                    pre_data, post_data = self._get_selected_roi_num_data(
+                        roi_num,
+                        var_names
+                    )
+                except ValueError:
+                    _errmsg = "`roi_num` must be an integer > 0 or `all`. "
+                    _errmsg += f"Found roi_num = {roi_num}."
+                    raise ValueError(_errmsg)
+        elif isinstance(roi_num, (list, int)):
+            if isinstance(roi_num, int) and (roi_num == 0):
+                raise ValueError("ROI number must be > 0.")
+            pre_data, post_data = self._get_selected_roi_num_data(
+                roi_num,
+                var_names)
+
+        # number of subjects
+        assert len(self.pre_dfs) == pre_data.shape[0]
+        assert len(self.post_dfs) == post_data.shape[0]
+        assert pre_data.shape == post_data.shape
+
+        # Perform paired T-test
+        if combine:
+            t_stat, two_sided_p_value = self.stats.ttest_rel(
+                a=pre_data.flatten(),
+                b=post_data.flatten()
+            )
+            ret_dict = {
+                't_stat': t_stat,
+                'two_sided_p_value': two_sided_p_value,
+                'p_value': two_sided_p_value / 2,
+            }
+        else:
+            if isinstance(roi_num, list):
+                ret_dict = {}
+                for i, _roi in enumerate(roi_num):
+                    t_stat, two_sided_p_value = self.stats.ttest_rel(
+                        a=pre_data[:, i, :].flatten(),  # per ROI
+                        b=post_data[:, i, :].flatten()
+                    )
+                    ret_dict[_roi] = {
+                        't_stat': t_stat,
+                        'two_sided_p_value': two_sided_p_value,
+                        'p_value': two_sided_p_value / 2,
+                    }
+            else:
+                assert len(pre_data.shape) == 2
+                t_stat, two_sided_p_value = self.stats.ttest_rel(
+                    a=pre_data.flatten(),  # per ROI
+                    b=post_data.flatten()
+                )
+                ret_dict = {
+                    't_stat': t_stat,
+                    'two_sided_p_value': two_sided_p_value,
+                    'p_value': two_sided_p_value / 2,
+                }
+        return ret_dict
+
+    def run_roi_groups(self,
+                       var_names: list,
+                       roi_groups: Union[None, Dict[int, list]]) -> dict:
+        """Perform paired T-test on the given variable
+
+        Args:
+            var_names: list of column name(s) of the variable to
+                perform T-test.
+            roi_groups: Apply paried T-test on the groups of ROIs.
+                There will be one p-value per group.
+        """
+        ret_dict = {}
+        for grp_num, roi_list in roi_groups.items():
+            results = self.run_roi(
+                var_names=var_names,
+                roi_num=roi_list,
+                combine=True
+            )
+            results['group_p_value'] = results['p_value']
+            # Normalize p_value
+            results['p_value'] = results['group_p_value'] / len(roi_list)
+            ret_dict[grp_num] = results
+        return ret_dict
+
+    def _load_data_safely(self,
+                          paths_list:  List[Union[str, Path]],
+                          fill_missing_roi: bool,
+                          n_rois: int):
+        """Check and fix data before testing"""
+        dfs = {}
+        for p in paths_list:
+            df = pd.read_csv(p)
+            if fill_missing_roi:
+                df = fill_missing_roi_values(df, n_rois)
+            if df.shape[0] != n_rois:
+                _errmsg = f"# ROIs in {p} != n_rois ({df.shape[0]} != {n_rois})."
+                _errmsg += " set `fill_missing_roi = True` to fill missing values"
+                raise ValueError(_errmsg)
+            dfs[Path(p).stem] = df
+        return dfs
+
+    def _get_selected_roi_num_data(
+        self,
+        roi_num: Union[str, int, list],
+        var_names: List[str]
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Get selected ROIs data from subject dataframes in np.array format
+        """
+        if roi_num == 'all':
+            pre_data = np.array([
+                s[var_names].values
+                for s in self.pre_dfs.values()
+            ])
+            post_data = np.array([
+                s[var_names].values
+                for s in self.post_dfs.values()
+            ])
+        else:
+            pre_data = np.array([
+                s[var_names].loc[roi_num].values
+                for s in self.pre_dfs.values()
+            ])
+            post_data = np.array([
+                s[var_names].loc[roi_num].values
+                for s in self.post_dfs.values()
+            ])
+        return pre_data, post_data
