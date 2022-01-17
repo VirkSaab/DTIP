@@ -250,7 +250,7 @@ class DataLoader:
 
     def paired_t_test(self,
                       var_name: str,
-                      roi_num: Union[None, str, int],
+                      roi_num: Union[None, str, int, list],
                       roi_groups: Union[None, Dict[int, list]],
                       alpha: float = 0.05) -> dict:
         """Perform paired T-test on the given variable
@@ -279,13 +279,25 @@ class DataLoader:
                         'p_value': p_value / 2,
                     }
                 return ret_dict
+            elif isinstance(roi_num, list):
+                ret_dict = {}
+                for i in roi_num:
+                    t_stat, p_value = self._one_roi_paired_t_test(
+                        var_name, roi_num=i
+                    )
+                    ret_dict[i] = {
+                        't_stat': t_stat, 
+                        'two_sided_p_value': p_value,
+                        'p_value': p_value / 2,
+                    }
+                return ret_dict
             else:
                 try:
                     roi_num = int(roi_num)
                     if roi_num == 0:
                         raise ValueError("ROI number must be > 0.")
                 except ValueError:
-                    _errmsg = "`roi_num` must be an integer or `all`. "
+                    _errmsg = "`roi_num` must be an integer > 0 or `all`. "
                     _errmsg += f"Found roi_num = {roi_num}."
                     raise ValueError(_errmsg)
                 t_stat, p_value = self._one_roi_paired_t_test(

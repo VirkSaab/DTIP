@@ -21,4 +21,7 @@ dtip template-to-subject-multi /media/virk/MyEHDD/ITS/4_register/ /media/virk/My
 dtip compute-stats /media/virk/MyEHDD/ITS/4_register/1_1/dti_dtitk.nii.gz -tn JHU_pcl_128_dti_space.nii.gz -o /media/virk/MyEHDD/ITS/5_analysis
 ### For multiple subjects
 dtip compute-stats-multi /media/ubuntu/MyEHDD/ITS22/4_register/ -sn dti_dtitk.nii.gz -tn JHU_pcl_128_shifted_diffeo_dti_space.nii.gz -o /media/ubuntu/MyEHDD/ITS22/5_analysis
+
+# Pairwise T-test
+dtip test pre_subs.txt post_subs.txt -roigrps selected_rois_groups.txt
 #------------------------------------------------------------------------------
