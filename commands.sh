@@ -24,4 +24,5 @@ dtip compute-stats-multi /media/ubuntu/MyEHDD/ITS22/4_register/ -sn dti_dtitk.ni
 
 # Pairwise T-test
 dtip test pre_subs.txt post_subs.txt -roigrps selected_rois_groups.txt
+dtip paired-ttest pre_subs.txt post_subs.txt -roi selected_rois.txt
 #------------------------------------------------------------------------------

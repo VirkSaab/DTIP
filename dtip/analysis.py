@@ -487,8 +487,20 @@ class PairedTTest:
                         'two_sided_p_value': two_sided_p_value,
                         'p_value': two_sided_p_value / 2,
                     }
+            elif roi_num == 'all':
+                ret_dict = {}
+                for i, _roi in enumerate(range(1, self.n_rois+1)):
+                    t_stat, two_sided_p_value = self.stats.ttest_rel(
+                        a=pre_data[:, i, :].flatten(),  # per ROI
+                        b=post_data[:, i, :].flatten()
+                    )
+                    ret_dict[_roi] = {
+                        't_stat': t_stat,
+                        'two_sided_p_value': two_sided_p_value,
+                        'p_value': two_sided_p_value / 2,
+                    }
             else:
-                assert len(pre_data.shape) == 2
+                # assert len(pre_data.shape) == 2
                 t_stat, two_sided_p_value = self.stats.ttest_rel(
                     a=pre_data.flatten(),  # per ROI
                     b=post_data.flatten()

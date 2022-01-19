@@ -678,6 +678,7 @@ def test(pre_subjects_filepath: str,
          verbose: bool = False):
 
     from dtip.analysis import DataLoader
+    import pandas as pd
 
     full_verbose = verbose
 
@@ -750,12 +751,14 @@ def test(pre_subjects_filepath: str,
                                     f"\tp_value ({one_tailed_p_value}) < alpha ({alpha}).")
                                 print("\t=> null hypothesis H0 rejected.")
                             rejected[colname].append(roi_num)
+                            ret_dict[roi_num]['H0_rejected'] = True
                         else:
                             if full_verbose:
                                 print(
                                     f"\tp_value ({one_tailed_p_value}) > alpha ({alpha}).")
                                 print("\t=> null hypothesis H0 NOT rejected.")
                             not_rejected[colname].append(roi_num)
+                            ret_dict[roi_num]['H0_rejected'] = False
                     print(f"H0 rejected = {len(rejected[colname])} times")
                     print(
                         f"H0 not rejected = {len(not_rejected[colname])} times")
@@ -771,12 +774,14 @@ def test(pre_subjects_filepath: str,
                                     f"p_value ({one_tailed_p_value}) < alpha ({alpha}).")
                                 print("=> null hypothesis H0 rejected.")
                             rejected[colname].append(i)
+                            ret_dict[i]['H0_rejected'] = True
                         else:
                             if full_verbose:
                                 print(
                                     f"p_value ({one_tailed_p_value}) > alpha ({alpha}).")
                                 print("=> null hypothesis H0 NOT rejected.")
                             not_rejected[colname].append(i)
+                            ret_dict[i]['H0_rejected'] = False
                     print(f"H0 rejected = {len(rejected[colname])} times")
                     print(
                         f"H0 not rejected = {len(not_rejected[colname])} times")
@@ -789,10 +794,12 @@ def test(pre_subjects_filepath: str,
                         # print(f"p_value ({group_p_value}) < alpha ({alpha}).")
                         # print("=> null hypothesis H0 rejected.")
                         rejected[colname].append(i)
+                        ret_dict[i]['H0_rejected'] = True
                     else:
                         # print(f"p_value ({group_p_value}) > alpha ({alpha}).")
                         # print("=> null hypothesis H0 NOT rejected.")
                         not_rejected[colname].append(i)
+                        ret_dict[i]['H0_rejected'] = False
                     print(f"group {i} p-value = {group_p_value}")
                 print(f"H0 rejected = {len(rejected[colname])} times")
                 print(f"H0 not rejected = {len(not_rejected[colname])} times")
@@ -821,6 +828,9 @@ def test(pre_subjects_filepath: str,
                         f"\t* ROI number {i} is NOT rejected in all variables.")
 
         print()  # Newline at the end
+        df = pd.DataFrame.from_dict(ret_dict)
+        print(df)
+        df.to_csv('results.csv')
 
 
 @cli.command()
@@ -870,6 +880,7 @@ def paired_ttest(pre_subjects_filepath: str,
                  combine: bool = False,
                  verbose: bool = False):
 
+    import pandas as pd
     from dtip.analysis import PairedTTest
 
     print("""Hypothesis:
@@ -923,9 +934,20 @@ def paired_ttest(pre_subjects_filepath: str,
             roi_num=roi,
             combine=combine
         )
-        if isinstance(roi, (int, str)):
+        if roi.isnumeric():
             print(f"ROI {roi}:")
             display_hypothesis(results, verbose=True)
+        elif roi == 'all':
+            rejected, not_rejected = 0, 0
+            for roi_num, stats in results.items():
+                if verbose:
+                    print(f"ROI {roi_num}:")
+                if display_hypothesis(stats, verbose=verbose):
+                    rejected += 1
+                    results[roi_num]['H0_rejected'] = True
+                else:
+                    not_rejected += 1
+                    results[roi_num]['H0_rejected'] = False
         elif isinstance(roi, list) and combine:
             display_hypothesis(results, verbose=True)
         else:
@@ -935,10 +957,16 @@ def paired_ttest(pre_subjects_filepath: str,
                     print(f"ROI {roi_num}:")
                 if display_hypothesis(stats, verbose=verbose):
                     rejected += 1
+                    results[roi_num]['H0_rejected'] = True
                 else:
                     not_rejected += 1
+                    results[roi_num]['H0_rejected'] = False
             print(f"H0 rejected {rejected}/{len(results)} times.")
             print(f"H0 NOT rejected {not_rejected}/{len(results)} times.")
+        if not roi.isnumeric():
+            df = pd.DataFrame.from_dict(results)
+            print(df)
+            df.to_csv('results.csv')
 
     # If ROI groups filepath is given, load data
     elif (roig is not None):
@@ -963,10 +991,15 @@ def paired_ttest(pre_subjects_filepath: str,
             print(f'{roi_num.capitalize()}:')
             if display_hypothesis(stats, verbose=True):
                 rejected += 1
+                results[roi_num]['H0_rejected'] = True
             else:
                 not_rejected += 1
+                results[roi_num]['H0_rejected'] = False
         print(f"H0 rejected {rejected}/{len(results)} times.")
         print(f"H0 NOT rejected {not_rejected}/{len(results)} times.")
+        df = pd.DataFrame.from_dict(results)
+        print(df)
+        df.to_csv('results.csv')
 
     else:
         print("Something went wrong :(")

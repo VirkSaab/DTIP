@@ -1,3 +1,13 @@
 /media/virk/MyEHDD/ITS22/5_analysis/1_1__dti_stats.csv
+/media/virk/MyEHDD/ITS22/5_analysis/5_1__dti_stats.csv
+/media/virk/MyEHDD/ITS22/5_analysis/6_1__dti_stats.csv
 /media/virk/MyEHDD/ITS22/5_analysis/7_1__dti_stats.csv
+/media/virk/MyEHDD/ITS22/5_analysis/8_1__dti_stats.csv
+/media/virk/MyEHDD/ITS22/5_analysis/9_1__dti_stats.csv
 /media/virk/MyEHDD/ITS22/5_analysis/10_1__dti_stats.csv
+/media/virk/MyEHDD/ITS22/5_analysis/11_1__dti_stats.csv
+/media/virk/MyEHDD/ITS22/5_analysis/14_1__dti_stats.csv
+/media/virk/MyEHDD/ITS22/5_analysis/16_1__dti_stats.csv
+/media/virk/MyEHDD/ITS22/5_analysis/17_1__dti_stats.csv
+/media/virk/MyEHDD/ITS22/5_analysis/21_1__dti_stats.csv
+/media/virk/MyEHDD/ITS22/5_analysis/24_1__dti_stats.csv
