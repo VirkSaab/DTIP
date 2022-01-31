@@ -666,6 +666,12 @@ def compute_stats_multi(input_path,
     show_default=True,
     help=f"Significance value.",
 )
+@click.option(
+    "-save_as",
+    default='results.csv',
+    show_default=True,
+    help=f"Enter .csv results filename [default is `results.csv`].",
+)
 @click.option('--allvars', is_flag=True, default=False)
 @click.option('--verbose', is_flag=True, default=False)
 def test(pre_subjects_filepath: str,
@@ -674,6 +680,7 @@ def test(pre_subjects_filepath: str,
          roi: Union[str, int],
          roigrps: str,
          alpha: float,
+         save_as: str,
          allvars: bool = False,
          verbose: bool = False):
 
@@ -830,7 +837,7 @@ def test(pre_subjects_filepath: str,
         print()  # Newline at the end
         df = pd.DataFrame.from_dict(ret_dict)
         print(df)
-        df.to_csv('results.csv')
+        df.to_csv(f"{save_as}.csv")
 
 
 @cli.command()
@@ -870,12 +877,19 @@ def test(pre_subjects_filepath: str,
 )
 @click.option('--combine', is_flag=True, default=False)
 @click.option('--verbose', is_flag=True, default=False)
+@click.option(
+    "-save_as",
+    default='results',
+    show_default=True,
+    help=f"Enter results filename. [default is `results`].",
+)
 def paired_ttest(pre_subjects_filepath: str,
                  post_subjects_filepath: str,
                  roi: str,
                  roig: str,
                  alpha: float,
                  n_rois: int,
+                 save_as: str,
                  vars: bool = False,
                  combine: bool = False,
                  verbose: bool = False):
@@ -934,7 +948,7 @@ def paired_ttest(pre_subjects_filepath: str,
             roi_num=roi,
             combine=combine
         )
-        if roi.isnumeric():
+        if isinstance(roi, str) and roi.isnumeric():
             print(f"ROI {roi}:")
             display_hypothesis(results, verbose=True)
         elif roi == 'all':
@@ -963,10 +977,9 @@ def paired_ttest(pre_subjects_filepath: str,
                     results[roi_num]['H0_rejected'] = False
             print(f"H0 rejected {rejected}/{len(results)} times.")
             print(f"H0 NOT rejected {not_rejected}/{len(results)} times.")
-        if not roi.isnumeric():
-            df = pd.DataFrame.from_dict(results)
-            print(df)
-            df.to_csv('results.csv')
+        df = pd.DataFrame.from_dict(results)
+        print(df)
+        df.to_csv(f"{save_as}.csv")
 
     # If ROI groups filepath is given, load data
     elif (roig is not None):
@@ -999,7 +1012,7 @@ def paired_ttest(pre_subjects_filepath: str,
         print(f"H0 NOT rejected {not_rejected}/{len(results)} times.")
         df = pd.DataFrame.from_dict(results)
         print(df)
-        df.to_csv('results.csv')
+        df.to_csv(f"{save_as}.csv")
 
     else:
         print("Something went wrong :(")
