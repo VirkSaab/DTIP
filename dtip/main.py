@@ -668,7 +668,7 @@ def compute_stats_multi(input_path,
 )
 @click.option(
     "-save_as",
-    default='results.csv',
+    default='results',
     show_default=True,
     help=f"Enter .csv results filename [default is `results.csv`].",
 )
@@ -721,7 +721,8 @@ def test(pre_subjects_filepath: str,
         pre_list = pref.read().split('\n')
     with open(post_subjects_filepath) as postf:
         post_list = postf.read().split('\n')
-
+    pre_list = [p for p in pre_list if p]
+    post_list = [p for p in post_list if p]
     print("Hypothesis:\n\tH0: Pre and Post subjects are the same.")
     print("\tH1: Pre and Post subjects are not the same.")
 
@@ -730,7 +731,7 @@ def test(pre_subjects_filepath: str,
     show_common = False  # Display bool flag for common ROIs
     if test_type == 'pairedttest':
         rejected, not_rejected = {}, {}
-        for colname in ['fa_mean', 'rd_mean', 'ad_mean']:
+        for colname in ['fa_mean', 'rd_mean', 'ad_mean', 'md_mean']:
             rejected[colname], not_rejected[colname] = [], []
             print()
             print('='*10, colname, '='*10)
@@ -919,7 +920,8 @@ def paired_ttest(pre_subjects_filepath: str,
 
     with open(post_subjects_filepath) as postf:
         post_list = postf.read().split('\n')
-
+    pre_list = [p for p in pre_list if p]
+    post_list = [p for p in post_list if p]
     test = PairedTTest(
         pre=pre_list, post=post_list, n_rois=n_rois, fill_missing_roi=True
     )
@@ -979,6 +981,7 @@ def paired_ttest(pre_subjects_filepath: str,
             print(f"H0 NOT rejected {not_rejected}/{len(results)} times.")
         df = pd.DataFrame.from_dict(results)
         print(df)
+        print("saved results to results.csv")
         df.to_csv(f"{save_as}.csv")
 
     # If ROI groups filepath is given, load data

@@ -135,6 +135,7 @@ class ComputeSubjectROIStats:
             'fa_mean': [], 'fa_std': [],
             'ad_mean': [], 'ad_std': [],
             'rd_mean': [], 'rd_std': [],
+            'md_mean': [], 'md_std': [],
         }
 
         for roi_num in progress_bar(self.rois_values, display=self.show_pb):
@@ -189,6 +190,16 @@ class ComputeSubjectROIStats:
             rd_img = nib.load('tmp_roi.nii.gz').get_fdata()
             roi_stats['rd_mean'] = rd_img.mean()
             roi_stats['rd_std'] = rd_img.std()
+
+        # Mean Diffusivity (MD)
+        # To compute the map of trace (TR) (equal to 3 times the mean diffusivity) 
+        ret_code = subprocess.run([
+            'TVtool', '-in', roi_path, '-tr', '-out', 'tmp_roi.nii.gz'
+        ]).returncode
+        if ret_code == 0:
+            md_img = nib.load('tmp_roi.nii.gz').get_fdata() / 3
+            roi_stats['md_mean'] = md_img.mean()
+            roi_stats['md_std'] = md_img.std()
         return roi_stats
 
 
@@ -544,8 +555,13 @@ class PairedTTest:
         dfs = {}
         for p in paths_list:
             df = pd.read_csv(p)
-            if fill_missing_roi:
-                df = fill_missing_roi_values(df, n_rois)
+            try:
+                if fill_missing_roi:
+                    df = fill_missing_roi_values(df, n_rois)
+            except ValueError as e:
+                print(e)
+                raise ValueError(f"Error @ `{p}`")
+                
             if df.shape[0] != n_rois:
                 _errmsg = f"# ROIs in {p} != n_rois ({df.shape[0]} != {n_rois})."
                 _errmsg += " set `fill_missing_roi = True` to fill missing values"
