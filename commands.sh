@@ -26,3 +26,5 @@ dtip compute-stats-multi /media/ubuntu/MyEHDD/ITS22/4_register/ -sn dti_dtitk.ni
 dtip test pre_subs.txt post_subs.txt -roigrps selected_rois_groups.txt
 dtip paired-ttest pre_subs.txt post_subs.txt -roi selected_rois.txt
 #------------------------------------------------------------------------------
+
+#[VM Machine with FSL and other requirements installed (Ubuntu 20)](https://cumailin-my.sharepoint.com/:f:/g/personal/20mai1035_cuchd_in/Eoyrseggg7JIpDGybC2scXoBLRAJfjZ6Cp9n5ztolMCwgQ?e=ZFepmK)
